@@ -4,7 +4,7 @@
   project-Feb 13 (25%)
   report- Feb 27  (5%)
    
- # requirements
+ # Requirements
   Moniter a toster owen located in the lab, using fancy surface mount chips that we have to solder, and program in arm. 
    
    
