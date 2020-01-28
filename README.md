@@ -15,5 +15,6 @@ best of luck guys!!!!, i am so happy to work with all of you..
 The NXP (founded by Philips) P89LPC9351 is an 8051-based microcontroller with 2 clock highspeed core, 8K Bytes ISP/IAP Flash, 512 Bytes Data EEPROM, 256 Bytes RAM, 512 Bytes AUX RAM, Dual DPTR, 23(26) I/O Lines, 2 Timers/Counters, UART, I2C, SPI, 2 Analog Comparators, 2 ADCs, 2 Programmable Gain Amplifier, Capture & Compare (CCU) with 2 channels, 8 Key Pad Interrupts, Watchdog (WDT), Brownout detection, Realtime Clock (RTC), and On-Chip Oscillator.
 
 
-# check the projects tab for more info !
+# gantt chat 
+![plan](https://github.com/dhruvpatelgeek/elec_291_prj_1-reflow_ctrl/blob/master/Screen%20Shot%202020-01-27%20at%2010.25.03%20PM.png)
    
