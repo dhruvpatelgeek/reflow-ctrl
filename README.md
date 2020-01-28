@@ -2,7 +2,7 @@
 
 # Due on 
   project-Feb 13 (25%)
-  report- Feb 27  (5%
+  report- Feb 27  (5%)
 
 best of luck guys!!!!, i am so happy to work with all of you..
 
