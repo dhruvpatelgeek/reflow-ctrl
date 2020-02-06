@@ -1,6 +1,4 @@
 ;FSM for project1/FEB 1/Zahra
-
-
 org 0000H
    ljmp MyProgram
 
@@ -22,6 +20,38 @@ temp: ds 1
 sec: ds 1
 pwm: ds 1
 
+                                                                               
+
+                                                                               
+
+;                                                        -                     
+;                                                       -  -                    
+;                                                      -    -                   
+;                                                     -     --                  
+;                                                    -       --                 
+;                                                   -         -                 
+;                                                  -            -               
+;                                                 -              -              
+;                                                -                -             
+;                                               -                 --            
+;                                             --                   --           
+;                                            -                       -          
+;               -----------------------------                        -         
+;              -                                                      -        
+;             -                                                        --       
+;            -                                                          -       
+;          -                                                             -      
+;         -                                                               -     
+;        -                                                                 -    
+;      -                                                                    -    
+;     -                                                                      -   
+;   -                                                                         -   
+;   state 1 ((temp==soak)? ssr_off: ssr_on)
+;          state 2 ((time=soak_time)?(pwm_off):(pwn_on))
+;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
+;                                                        state 4 (cooling ssr_off)
+;                                                                             state 5 (done)
+                                                                            
 
 CSEG
 MyProgram:
