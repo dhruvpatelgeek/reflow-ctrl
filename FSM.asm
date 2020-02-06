@@ -35,7 +35,7 @@ pwm: ds 1
 ;                                                -                -             
 ;                                               -                 --            
 ;                                             --                   --           
-;                                            -                       -          
+;                we will use timer 1 for this -                     -          
 ;               -----------------------------                        -         
 ;              -                                                      -        
 ;             -                                                        --       
@@ -54,6 +54,12 @@ pwm: ds 1
                                                                             
 
 CSEG
+;; send in r1 var 1 
+;; send in r2 var 2 
+;; output  r3 ==1 if (r1 >= r2)
+;;                  else 0                   
+check_if_equal_or_greater:
+
 MyProgram:
 	mov sp, #07FH ; Initialize the stack pointer
 	
@@ -74,9 +80,12 @@ forever:
       mov sec, #0
       mov a, temp_soak
       clr c
-      subb a, temp
+    
+      ljmp check_if_equal_or_greater; checks if temp == temp soak returns r4 in a if yes else no
+
+      mov a r3
+      cjne a #1 state1 
       ;add branches to compare temp with 150
-      jnc state1_done
       mov state, #2
   state1_done:
        ljmp forever
