@@ -27,24 +27,24 @@ owen_temp ds 1
 ;                                                        -                     
 ;                                                       -  -                    
 ;                                                      -    -                   
-;                                                     -      -                  
+;                              leave it at this temp>>-      -                  
 ;                                                    -        -                 
 ;                                                   -          -                 
 ;                                                  -            -               
 ;                                                 -              -              
 ;                                                -                -             
 ;                                               -                  -            
-;                                             --                    -           
-;                                              -    reflow>>cool     -          
-;               -----------------------------                        -         
-;              -     soak                                             -        
+;                                              -                    -           
+;                                             -    reflow>>cool     -          
+;               -----------------------------    (temperature only)  -         
+;              -     soak (time+temp)                                 -        
 ;             -                                                        -       
 ;            -                                                          -       
 ;          -                                                             -      
 ;         -                                                               -     
 ;        -                                                                 -    
 ;      -                                                                    -    
-;     - ramp to soak                                                         -   
+;     - ramp to soak (temperature)                                           -   
 ;   -                                                                         -   
 ;   state 1 ((temp==soak)? ssr_off: ssr_on)
 ;          state 2 ((time=soak_time)?(pwm_off):(pwn_on)
@@ -55,7 +55,6 @@ owen_temp ds 1
 
 CSEG
 ;; time to sustain in r4 in seconds
-;; what temprature to be sustained at in r3
 sustain_temperature_for_x_seconds:
 mov a r4
 djne a one_sec_soak
@@ -139,8 +138,10 @@ forever:
       cjne a, #2 , state3
       mov pwm, #20
       ;; turn the ssr on/off using pwm
+      ;; mov into r4 how many seconds do you want to soak in seconds
+      mov a time_soak
+      mov @r4 a
       lcall sustain_temperature_for_x_seconds
-      ;add branches to compare sec with  60
       jnc state2_done
       mov state, #3
   state2_done:
