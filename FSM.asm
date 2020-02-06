@@ -59,6 +59,18 @@ CSEG
 ;; output  r3 ==1 if (r1 >= r2)
 ;;                  else 0                   
 check_if_equal_or_greater:
+mov a r1
+subb a r2
+cjne c #0 return_0
+return_1:
+mov a, #1
+mov @r3,a
+ret
+
+return_0:
+mov a, #0
+mov @r3,a
+ret
 
 MyProgram:
 	mov sp, #07FH ; Initialize the stack pointer
@@ -81,7 +93,7 @@ forever:
       mov a, temp_soak
       clr c
     
-      ljmp check_if_equal_or_greater; checks if temp == temp soak returns r4 in a if yes else no
+      lcall check_if_equal_or_greater; checks if temp == temp soak returns r4 in a if yes else no
 
       mov a r3
       cjne a #1 state1 
