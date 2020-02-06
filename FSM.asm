@@ -1,4 +1,5 @@
 ;FSM for project1/FEB 1/Zahra
+;; just to test connect led to p0.0
 org 0000H
    ljmp MyProgram
 
@@ -11,15 +12,15 @@ start equ p1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is
 
 dseg AT 30H
 
-temp_soak: ds 1
-time_soak: ds 1
-temp_refl: ds 1
-time_refl: ds 1
-state: ds 1
-temp: ds 1
-sec: ds 1
-pwm: ds 1
-owen_temp ds 1
+temp_soak: ds 1 ;; temp to be soaked at
+time_soak: ds 1 ;; time to be soaked at
+temp_refl: ds 1 ;; temp to be reflow at
+time_refl: ds 1 ;; temp to be reflowed at
+state: ds 1     ;; what state it is at
+temp: ds 1      ;; current_temp
+sec: ds 1       ;; current seconds
+pwm: ds 1       ;; current pwn variable
+
                                                                                
 
                                                                                
@@ -54,6 +55,17 @@ owen_temp ds 1
                                                                             
 
 CSEG
+;; send temp to be spiked to in r4 return when r4 is reached regardless of time
+temp_dirac:
+clr c
+setb p0.0 
+lcall WaitHalfSec
+mov a r4
+subb a temp
+jnc temp_dirac
+clr c
+ret
+
 ;; time to sustain in r4 in seconds
 sustain_temperature_for_x_seconds:
 mov a r4
@@ -64,7 +76,30 @@ one_sec_soak:
 lcall WaitHalfSec
 lcall WaitHalfSec
 mov a temp_soak
-subb a owen_temp
+subb a temp
+jnc soak_less
+
+soak_more:
+setb p0.0
+clr c
+sjmp sustain_temperature_for_x_seconds
+
+soak_less:
+clr p0.0
+clr c
+sjmp sustain_temperature_for_x_seconds
+
+;; time to sustain in r4 in seconds for reflow
+sustain_temperature_for_x_seconds:
+mov a r4
+djne a one_sec_soak
+ret
+
+one_sec_soak:
+lcall WaitHalfSec
+lcall WaitHalfSec
+mov a temp_soak
+subb a temp
 jnc soak_less
 
 soak_more:
@@ -124,7 +159,7 @@ forever:
       mov sec, #0
       mov a, temp_soak
       clr c
-    
+      
       lcall check_if_equal_or_greater; checks if temp == temp soak returns r4 in a if yes else no
 
       mov a r3
@@ -152,10 +187,9 @@ forever:
       mov pwm, #100
       mov sec, #0     
       mov a, temp_refl
-      clr c
-      subb a, temp
+      mov @r4 a
+      lcall temp_dirac
       ;add branches to compare temp with 220
-      jnc state3_done
       mov state, #4
   state3_done:
        ljmp forever
@@ -164,8 +198,8 @@ forever:
       cjne a, #4 , state5
       mov pwm, #20
       mov a, time_refl
-      clr c
-      subb a, sec
+      mov @r4 a
+      lcall sustain_temperature_for_x_seconds
       ;add branches to compare sec with 45
       jnc state4_done
       mov state, #5
