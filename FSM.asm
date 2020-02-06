@@ -19,7 +19,7 @@ state: ds 1
 temp: ds 1
 sec: ds 1
 pwm: ds 1
-
+owen_temp ds 1
                                                                                
 
                                                                                
@@ -27,33 +27,57 @@ pwm: ds 1
 ;                                                        -                     
 ;                                                       -  -                    
 ;                                                      -    -                   
-;                                                     -     --                  
-;                                                    -       --                 
-;                                                   -         -                 
+;                                                     -      -                  
+;                                                    -        -                 
+;                                                   -          -                 
 ;                                                  -            -               
 ;                                                 -              -              
 ;                                                -                -             
-;                                               -                 --            
-;                                             --                   --           
-;                we will use timer 1 for this -                     -          
+;                                               -                  -            
+;                                             --                    -           
+;                                              -    reflow>>cool     -          
 ;               -----------------------------                        -         
-;              -                                                      -        
-;             -                                                        --       
+;              -     soak                                             -        
+;             -                                                        -       
 ;            -                                                          -       
 ;          -                                                             -      
 ;         -                                                               -     
 ;        -                                                                 -    
 ;      -                                                                    -    
-;     -                                                                      -   
+;     - ramp to soak                                                         -   
 ;   -                                                                         -   
 ;   state 1 ((temp==soak)? ssr_off: ssr_on)
-;          state 2 ((time=soak_time)?(pwm_off):(pwn_on))
+;          state 2 ((time=soak_time)?(pwm_off):(pwn_on)
 ;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
 ;                                                        state 4 (cooling ssr_off)
 ;                                                                             state 5 (done)
                                                                             
 
 CSEG
+;; time to sustain in r4 in seconds
+;; what temprature to be sustained at in r3
+sustain_temperature_for_x_seconds:
+mov a r4
+djne a one_sec_soak
+ret
+
+one_sec_soak:
+lcall WaitHalfSec
+lcall WaitHalfSec
+mov a temp_soak
+subb a owen_temp
+jnc soak_less
+
+soak_more:
+setb p0.0
+clr c
+sjmp sustain_temperature_for_x_seconds
+
+soak_less:
+clr p0.0
+clr c
+sjmp sustain_temperature_for_x_seconds
+
 ;; send in r1 var 1 
 ;; send in r2 var 2 
 ;; output  r3 ==1 if (r1 >= r2)
@@ -70,6 +94,15 @@ ret
 return_0:
 mov a, #0
 mov @r3,a
+ret
+
+WaitHalfSec: 
+mov R2, #89
+q3: mov R1, #250
+q2: mov R0, #166
+q1: djnz R0, q1 ;3 cycles->3*45.21123ns*166=22.51519us
+djnz R1, q2 ; 22.51519us*250=5.629ms
+djnz R2, q3 ; 5.629ms*89=0.5s (approximately)
 ret
 
 MyProgram:
@@ -105,9 +138,8 @@ forever:
   state2:
       cjne a, #2 , state3
       mov pwm, #20
-      mov a, time_soak
-      clr c
-      subb a, sec
+      ;; turn the ssr on/off using pwm
+      lcall sustain_temperature_for_x_seconds
       ;add branches to compare sec with  60
       jnc state2_done
       mov state, #3
