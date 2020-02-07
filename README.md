@@ -17,4 +17,7 @@ The NXP (founded by Philips) P89LPC9351 is an 8051-based microcontroller with 2 
 
 # gantt chat 
 ![plan](https://github.com/dhruvpatelgeek/elec_291_prj_1-reflow_ctrl/blob/master/Screen%20Shot%202020-01-27%20at%2010.25.03%20PM.png)
+ 
+ # ui design
+![plan](https://github.com/dhruvpatelgeek/elec_291_prj_1-reflow_ctrl/blob/master/IMG_C3E350A64087-1.jpeg)
    
