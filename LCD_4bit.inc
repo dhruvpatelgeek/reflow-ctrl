@@ -227,4 +227,12 @@ endmac
 	pop acc
 	ret
 
+PushButton MAC
+	jb %0, %1
+	Wait_Milli_Seconds(#10)
+	jb %0, %1
+	jnb %0, $
+
+ENDMAC
+
 	
