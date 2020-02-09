@@ -405,12 +405,9 @@ Reset_timer:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Now clear the BCD counter and min
-    mov min, a
 	mov BCD_counter, a
-    
-    jnb TR2_flag, continue5 ; turn the timer back on if it was on
 	setb TR2                ; Start timer 2
-    continue5:
+
     ret
 Display_time:
     Set_Cursor(2, 1)
@@ -448,10 +445,8 @@ Display_time:
 home_page:
     ;--------Timer----------;
     jnb half_seconds_flag, Temp_sensor
-    jnb TR2, display1
     lcall sec_counter
     lcall min_counter
-    display1:
     lcall Display_time
     ;-----------------------;
             
@@ -462,6 +457,32 @@ home_page:
     lcall  WaitHalfSec 
     ;-----------------------;
     ret
+
+setup_reflow_page:
+    Set_Cursor(1, 1)
+    Send_Constant_String(#reflow_setup)
+    Set_Cursor(2, 1)
+    Send_Constant_String(#reflow_setup2)
+
+;    jb Button_min, hour_alarm ; if the 'min' button is not pressed skip
+;    Wait_Milli_Seconds(#50)	; Debounce delay.  This macro is also in 'LCD_4bit.inc'
+;    jb Button_min, hour_alarm  ; if the 'min' button is not pressed skip
+;    jnb Button_min, $	
+;
+;    mov a, alarm_min
+;    cjne a, #0x59, add_alarm_min
+;    clr a 
+;    ljmp SJ1
+;    add_alarm_min:
+;    add a, #0x01
+;    da a ; Decimal adjust instruction.  Check datasheet for more details!
+;    SJ1:
+;    mov alarm_min, a
+;    Set_Cursor(2, 10)
+;    Display_BCD(alarm_min)
+
+    ret
+
 second_page:
     Set_Cursor(1, 1)
     Send_Constant_String(#soak_reflw)
@@ -553,10 +574,7 @@ MainProgram:
         
         setup_soak:
             cjne a, #2, setup_reflow
-            Set_Cursor(1, 1)
-            Send_Constant_String(#reflow_setup)
-            Set_Cursor(2, 1)
-            Send_Constant_String(#reflow_setup2)
+            lcall setup_reflow_page
           ;  Wait_Milli_Seconds(#50)
             lcall sec_counter ; prevent the timer to go over 60
             lcall min_counter
