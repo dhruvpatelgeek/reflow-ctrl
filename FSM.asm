@@ -1,21 +1,25 @@
-;FSM for project1/FEB 1/Zahra
-
+; ISR_example.asm: a) Increments/decrements a BCD variable every half second using
+; an ISR for timer 2; b) Generates a 2kHz square wave at pin P3.7 using
+; an ISR for timer 0; and c) in the 'main' loop it displays the variable
+; incremented/decremented using the ISR for timer 2 on the LCD.  Also resets it to 
+; zero if the 'CLEAR' pushbutton connected to P1.7 is pressed.
 $NOLIST
 $MOD9351
 $LIST
 
-CLK           EQU 7373000  ; Microcontroller system clock frequency in Hz
+CLK           EQU 7373000  ; Microcontroller system crystal frequency in Hz
 TIMER0_RATE   EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
 TIMER0_RELOAD EQU ((65536-(CLK/(2*TIMER0_RATE))))
-CCU_RATE      EQU 100      ; 100Hz, for an overflow rate of 10ms
-CCU_RELOAD    EQU ((65536-(CLK/(2*CCU_RATE))))
+TIMER1_RATE   EQU 100     ; 100Hz, for a timer tick of 10ms
+TIMER1_RELOAD EQU ((65536-(CLK/(2*TIMER1_RATE))))
 
 CLEAR         equ P1.7
 SOUND_OUT     equ P2.7
 UPDOWN        equ P2.4
 
-org 0000H
-   ljmp MyProgram
+; Reset vector
+org 0x0000
+    ljmp main
 
 ; External interrupt 0 vector (not used in this code)
 org 0x0003
@@ -29,22 +33,14 @@ org 0x000B
 org 0x0013
 	reti
 
-; Timer/Counter 1 overflow interrupt vector (not used in this code
+; Timer/Counter 1 overflow interrupt vector
 org 0x001B
-	reti
+	ljmp Timer1_ISR
 
 ; Serial port receive/transmit interrupt vector (not used in this code)
 org 0x0023 
 	reti
 
-; CCU interrupt vector
-org 0x005b 
-	ljmp CCU_ISR
-
-
-define key
-CSEG
-start equ P1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is just a random pin
 
 
 ;                                                        -                     
@@ -74,11 +70,11 @@ start equ P1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is
 ;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
 ;                                                        state 4 (cooling ssr_off)
 ;                                                                             state 5 (done)
-   
-;defining variables
 
-dseg AT 30H
-
+; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
+dseg at 0x30
+Count10ms:    ds 1 ; Used to determine when half second has passed
+BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
 temp_soak: ds 1 ; temp to soak
 time_soak: ds 1 ; time to soak
 temp_refl: ds 1 ; temp of relfow
@@ -86,6 +82,7 @@ time_refl: ds 1 ; time to reflow
 state: ds 1 ; current state 
 temp: ds 1 ; current temp in degree C
 sec: ds 1 ; current time in seconds 
+product: ds 1; pwm-currsec
 pwm: ds 1 ; 
 
 ;_ _ _ _ | _ _ _ _ _ _
@@ -96,10 +93,8 @@ pwm: ds 1 ;
 ;         |
 ;          _____________
 ; where period is 1 second 
-
-Count10ms:    ds 1 ; Used to determine when half second has passed
-BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
-
+; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
+; instructions with these variables.  This is how you define a 1-bit variable:
 bseg
 half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
 
@@ -118,6 +113,7 @@ $LIST
 
 ;                     1234567890123456    <- This helps determine the location of the counter
 Initial_Message:  db 'BCD_counter: xx ', 0
+
 ;---------------------------------;
 ; Routine to initialize the ISR   ;
 ; for timer 0                     ;
@@ -146,26 +142,27 @@ Timer0_ISR:
 	reti
 
 ;---------------------------------;
-; Routine to initialize the CCU   ;
-; We are using the CCU timer in a ;
-; manner similar to timer 2       ;
+; Routine to initialize the ISR   ;
+; for timer 1                     ;
 ;---------------------------------;
-CCU_Init:
-	mov TH2, #high(CCU_RELOAD)
-	mov TL2, #low(CCU_RELOAD)
-	mov TOR2H, #high(CCU_RELOAD)
-	mov TOR2L, #low(CCU_RELOAD)
-	mov TCR21, #10000000b ; Latch the reload value
-	mov TICR2, #10000000b ; Enable CCU Timer Overflow Interrupt
-	setb ECCU ; Enable CCU interrupt
-	setb TMOD20 ; Start CCU timer
+Timer1_Init:
+	mov a, TMOD
+	anl a, #0x0f ; Clear the bits for timer 1
+	orl a, #0x10 ; Configure timer 1 as 16-timer
+	mov TMOD, a
+	mov TH1, #high(TIMER1_RELOAD)
+	mov TL1, #low(TIMER1_RELOAD)
+	; Enable the timer and interrupts
+    setb ET1  ; Enable timer 1 interrupt
+    setb TR1  ; Start timer 1
 	ret
 
 ;---------------------------------;
-; ISR for CCU                     ;
+; ISR for timer 1                 ;
 ;---------------------------------;
-CCU_ISR:
-	mov TIFR2, #0 ; Clear CCU Timer Overflow Interrupt Flag bit. Actually, it clears all the bits!
+Timer1_ISR:
+	mov TH1, #high(TIMER1_RELOAD)
+	mov TL1, #low(TIMER1_RELOAD)
 	cpl P2.6 ; To check the interrupt rate with oscilloscope. It must be precisely a 10 ms pulse.
 	
 	; The two registers used in the ISR must be saved in the stack
@@ -176,74 +173,90 @@ CCU_ISR:
 	inc Count10ms
 
 Inc_Done:
-	; set pwm pulse
-    subb a, pwm ; if pwm greater than a pwm is on else off
+	mov a, Count10ms
+	subb a, pwm ; if pwm greater than a pwm is on else off
+	da a
+	mov a, product
     jnc off_segment
-    setb p0.0
+    setb p0.1
     clr c
     sjmp pass
     off_segment:
-    clr p0.0
+    clr p0.1
     clr c
     sjmp pass
 
     ; Check if 1 second has passed
     pass:
+
+	; Check if half second has passed
 	mov a, Count10ms
-	cjne a, #100, CCU_ISR_done ; Warning: this instruction changes the carry flag!
+	cjne a, #100, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
+	;----------------------------
+	inc sec ; one second has passed
     ;----------------------------
-	inc sec 
-    ;----------------------------
-	; 1000 milliseconds have passed.  Set a flag so the main program knows
+	; 500 milliseconds have passed.  Set a flag so the main program knows
 	setb half_seconds_flag ; Let the main program know half second had passed
 	cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
 	; Reset to zero the 10-milli-seconds counter, it is a 8-bit variable
-	mov Count10ms, #0
+	mov Count10ms, #0x0
 	; Increment the BCD counter
 	mov a, BCD_counter
-	jnb UPDOWN, CCU_ISR_decrement
+	jnb UPDOWN, Timer1_ISR_decrement
 	add a, #0x01
-	sjmp CCU_ISR_da
-CCU_ISR_decrement:
+	sjmp Timer1_ISR_da
+Timer1_ISR_decrement:
 	add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-CCU_ISR_da:
+Timer1_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	mov BCD_counter, a
 	
-CCU_ISR_done:
+Timer1_ISR_done:
 	pop psw
 	pop acc
 	reti
-
-Ports_Init:
-    ; Configure all the ports in bidirectional mode:
-    mov P0M1, #00H
-    mov P0M2, #00H
-    mov P1M1, #00H
-    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1 kohm pull-up resistors if used as outputs!
-    mov P2M1, #00H
-    mov P2M2, #00H
-    mov P3M1, #00H
-    mov P3M2, #00H
-	ret
 
 ;---------------------------------;
 ; Main program. Includes hardware ;
 ; initialization and 'forever'    ;
 ; loop.                           ;
 ;---------------------------------;
+main:
+	; Initialization
+    mov SP, #0x7F
+    lcall Timer0_Init
+    lcall Timer1_Init
+    ; Configure all the ports in bidirectional mode:
+    mov P0M1, #00H
+    mov P0M2, #00H
+    mov P1M1, #00H
+    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
+    mov P2M1, #00H
+    mov P2M2, #00H
+    mov P3M1, #00H
+    mov P3M2, #00H
+    setb EA   ; Enable Global interrupts
+    lcall LCD_4BIT
+    ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
+	Set_Cursor(1, 1)
+    Send_Constant_String(#Initial_Message)
 
-CSEG
-MyProgram:
-	mov sp, #07FH ; Initialize the stack pointer
-	
+    setb half_seconds_flag
+	mov BCD_counter, #0x00
+	mov pwm , #0
+	mov sec , #0
+	mov state, #0
+	mov temp, #150
+	; After initialization the program stays in this 'forever' loop
+
 forever:	
   mov a, state
+    
   state0: 
       cjne a, #0, state1
       mov pwm, #0
-      jb start, state0_done
-      jnb start, $ ;wait for key release
+      jb CLEAR, state0_done
+      jnb CLEAR, $ ;wait for key release
       mov state, #1
   state0_done:
       ljmp forever
@@ -309,4 +322,5 @@ forever:
   state5_done:
        ljmp forever 
        
-  END        
+
+END
