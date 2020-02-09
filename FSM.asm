@@ -41,6 +41,36 @@ org 0x001B
 org 0x0023 
 	reti
 
+
+
+;                                                        -                     
+;                                                       -  -                    
+;                                                      -    -                   
+;                              leave it at this temp>>-      -                  
+;                                                    -        -                 
+;                                                   -          -                 
+;                                                  -            -               
+;                                                 -              -              
+;                                                -                -             
+;                                               -                  -            
+;                                              -                    -           
+;                                             -    reflow>>cool     -          
+;               -----------------------------    (temperature only)  -         
+;              -     soak (time+temp)                                 -        
+;             -                                                        -       
+;            -                                                          -       
+;          -                                                             -      
+;         -                                                               -     
+;        -                                                                 -    
+;      -                                                                    -    
+;     - ramp to soak (temperature)                                           -   
+;   -                                                                         -   
+;   state 1 ((temp==soak)? ssr_off: ssr_on)
+;          state 2 ((time=soak_time)?(pwm_off):(pwn_on)
+;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
+;                                                        state 4 (cooling ssr_off)
+;                                                                             state 5 (done)
+
 ; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
 dseg at 0x30
 Count10ms:    ds 1 ; Used to determine when half second has passed
