@@ -191,6 +191,7 @@ Inc_Done:
 
 	; Check if half second has passed
 	mov a, Count10ms
+
 	cjne a, #100, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
 	;----------------------------
 	inc sec ; one second has passed
@@ -215,6 +216,10 @@ Timer1_ISR_done:
 	pop psw
 	pop acc
 	reti
+	
+	
+timee:  db 'time', 0
+statee:  db 'state', 0
 
 ;---------------------------------;
 ; Main program. Includes hardware ;
@@ -239,7 +244,7 @@ main:
     lcall LCD_4BIT
     ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
 	Set_Cursor(1, 1)
-    Send_Constant_String(#Initial_Message)
+    Display_BCD(BCD_counter)
 
     setb half_seconds_flag
 	mov BCD_counter, #0x00
@@ -247,11 +252,21 @@ main:
 	mov sec , #0
 	mov state, #0
 	mov temp, #150
+    mov time_soak, #5
+    mov temp_refl, #220
 	; After initialization the program stays in this 'forever' loop
 
 forever:	
   mov a, state
+    Set_Cursor(1, 1)
+    Send_Constant_String(#timee)
+    Set_Cursor(1, 5)
+    Display_BCD(sec)
     
+    Set_Cursor(2, 1)
+    Send_Constant_String(#statee)
+    Set_Cursor(2, 5)
+    Display_BCD(state)
   state0: 
       cjne a, #0, state1
       mov pwm, #0
@@ -288,7 +303,7 @@ forever:
   
   state3:
       cjne a, #3 , state4
-      mov pwm, #100
+      mov pwm, #80
       mov sec, #0     
       mov a, temp_refl
       clr c
