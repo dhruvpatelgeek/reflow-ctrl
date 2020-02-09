@@ -143,12 +143,6 @@ Timer1_ISR:
 	inc Count10ms
 
 Inc_Done:
-	Set_Cursor(2, 10)     ; the place in the LCD where we want the BCD counter value
-	Display_BCD(Count10ms) ; This macro is also in 'LCD_4bit_LPC9351.inc'
-	; set pwm pulse
-	Set_Cursor(2, 5)     ; the place in the LCD where we want the BCD counter value
-	Display_BCD(product) ; This macro is also in 'LCD_4bit_LPC9351.inc'
-	;plz work
 	mov a, Count10ms
 	subb a, pwm ; if pwm greater than a pwm is on else off
 	da a
@@ -222,7 +216,7 @@ main:
 	mov pwm , #0
 	mov sec , #0
 	mov state, #0
-	mov temp, #0
+	mov temp, #150
 	; After initialization the program stays in this 'forever' loop
 
 forever:	
