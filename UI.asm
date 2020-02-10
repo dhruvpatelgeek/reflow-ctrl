@@ -103,21 +103,21 @@
     setup 		  equ P0.2
     setmin		  equ P0.3
     sethour 	  equ P0.4
-  ;  setday        equ P0.5
+    setday        equ P0.5
 
   ;  start         equ P0.7
 
-    LCD_RS equ P0.5
-    LCD_RW equ P0.6
-    LCD_E  equ P0.7
-    LCD_D4 equ P1.2
-    LCD_D5 equ P1.3
-    LCD_D6 equ P1.4
-    LCD_D7 equ P1.6
+;    LCD_RS equ P0.5
+;    LCD_RW equ P0.6
+;    LCD_E  equ P0.7
+;    LCD_D4 equ P1.2
+;    LCD_D5 equ P1.3
+;    LCD_D6 equ P1.4
+;    LCD_D7 equ P1.6
 
- ;   LCD_RS        equ P1.1
- ;   LCD_RW        equ P1.2
- ;   LCD_E         equ P1.3
+    LCD_RS        equ P1.1
+    LCD_RW        equ P1.2
+    LCD_E         equ P1.3
     start2         equ p1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is just a random pin
 
 
@@ -132,10 +132,10 @@
     HOME_BUTTON   equ  P2.7
 
     ;LCD 4bits data
-;    LCD_D4        equ  P3.2
-;    LCD_D5        equ  P3.3
-;    LCD_D6        equ  P3.4
-;    LCD_D7        equ  P3.5
+    LCD_D4        equ  P3.2
+    LCD_D5        equ  P3.3
+    LCD_D6        equ  P3.4
+    LCD_D7        equ  P3.5
 
     BOOT_BUTTON   equ  P4.5
     SOUND_OUT     equ  P3.7
