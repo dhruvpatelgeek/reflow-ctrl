@@ -28,7 +28,6 @@
         org 0x002B
             ljmp Timer2_ISR
 
-    ;CLK  EQU 22118400
     CLK  EQU 22118400
     ;termometer
     BAUD equ 115200
@@ -350,7 +349,7 @@ Strings:
     dots:             db ':',0
     soak_reflw:       db '  SOAK  REFLOW  ', 0
     reflow_setup:     db 'Temp:XXX*REFLOW*',0
-    reflow_setup2:    db 'Time   :   HOME ',0
+    reflow_setup2:    db 'Time XX:XX HOME ',0
 
 
 convert:
@@ -462,7 +461,7 @@ home_page:
     ret
 
 setup_reflow_page:
-   ; jnb half_seconds_flag, display_reflow_page
+    jnb half_seconds_flag, display_reflow_page
     lcall INC_DEC_Reflow_time
     display_reflow_page:
     Set_Cursor(1, 1)
@@ -481,10 +480,10 @@ INC_DEC_Reflow_time:
 
     mov a, reflow_sec
     cjne a, #0x59, add_reflow_sec
-  ;  mov a, reflow_min
-   ; add a, #0x01
-   ; da a
-   ; mov reflow_min, a
+    mov a, reflow_min
+    add a, #0x01
+    da a
+    mov reflow_min, a
     clr a 
     ljmp Continue5
     add_reflow_sec:
@@ -497,10 +496,10 @@ INC_DEC_Reflow_time:
     PushButton(Button_min, continue8)
     mov a, reflow_sec
     cjne a, #0x00, sub_reflow_sec
- ;   mov a, reflow_min
-  ;  add a, #0x99
-  ;  da a
-  ;  mov reflow_min, a
+    mov a, reflow_min
+    add a, #0x99
+    da a
+    mov reflow_min, a
     clr a 
     ljmp Continue6
     sub_reflow_sec:
@@ -622,3 +621,71 @@ MainProgram:
         ;------------------------------------------;
 END
  
+        mov a, state_lcd
+
+         home_state:
+            cjne a, #0, soak_reflow_state
+;            PushButton(start,continue3)
+;            cpl TR2
+;            jb TR2, set_flag_TR2 ; look if the timer was on or off
+;            ljmp continue4
+;            set_flag_TR2:
+;            setb TR2_flag 
+;            continue4:           
+
+            ;lcall Reset_timer 
+;           continue3:
+            PushButton(set_BUTTON,done_home2)   
+            mov state_lcd, #1
+            ljmp done_home
+            done_home2:
+            lcall home_page
+            done_home:
+            ljmp Forever           
+
+
+        soak_reflow_state:
+            cjne a, #1, setup_soak
+            lcall second_page
+          ;  Wait_Milli_Seconds(#50)
+            lcall sec_counter ; prevent the timer to go over 60
+            lcall min_counter
+            PushButton(HOME_BUTTON,next_pushb) ; check if home button is pressed 
+            mov state_lcd, #0
+            next_pushb:
+            PushButton(SETUP_SOAK_Button,next_pushb2) ; check if the the button to setup soak is pressed
+            mov state_lcd, #2
+            next_pushb2:
+            PushButton(Button_min,done_soak) ; check if the buttion to setup the reflow was pressed 
+            mov state_lcd, #3
+            done_soak:
+           ljmp Forever
+        
+        setup_soak:
+            cjne a, #2, setup_reflow
+            lcall setup_reflow_page
+          ;  Wait_Milli_Seconds(#50)
+            lcall sec_counter ; prevent the timer to go over 60
+            lcall min_counter
+            PushButton(HOME_BUTTON,done_setup_soak) ; check if home button is pressed 
+            mov state_lcd, #0
+            done_setup_soak:
+            ljmp Forever
+        
+        setup_reflow:
+            cjne a, #3, FDP
+            ljmp FDP2
+            FDP:
+            ljmp home_state
+            FDP2:
+            Set_Cursor(1, 1)
+            Send_Constant_String(#test2)
+            Set_Cursor(2, 1)
+            Send_Constant_String(#test2)
+            lcall sec_counter ; prevent the timer to go over 60
+            lcall min_counter
+            PushButton(HOME_BUTTON,done_setup_reflow) ; check if home button is pressed 
+            mov state_lcd, #0
+            done_setup_reflow:
+            ljmp Forever
+END
