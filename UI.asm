@@ -107,13 +107,13 @@
 
   ;  start         equ P0.7
 
-;    LCD_RS equ P0.5
-;    LCD_RW equ P0.6
-;    LCD_E  equ P0.7
-;    LCD_D4 equ P1.2
-;    LCD_D5 equ P1.3
-;    LCD_D6 equ P1.4
-;    LCD_D7 equ P1.6
+ ;    LCD_RS equ P0.5
+ ;    LCD_RW equ P0.6
+ ;    LCD_E  equ P0.7
+ ;    LCD_D4 equ P1.2
+ ;    LCD_D5 equ P1.3
+ ;    LCD_D6 equ P1.4
+ ;    LCD_D7 equ P1.6
 
     LCD_RS        equ P1.1
     LCD_RW        equ P1.2
@@ -551,7 +551,7 @@ INC_DEC_Reflow_temp:
         loop_hold_inc:
 
 		jnb SETUP_SOAK_Button, jump2
-        Wait_Milli_Seconds(#100)
+        Wait_Milli_Seconds(#200)
         jnb SETUP_SOAK_Button, jump2
         ljmp hold_done
         jump2:
@@ -629,14 +629,14 @@ MainProgram:
 
         ; Configure all the ports in bidirectional mode:
 
-    mov P0M1, #00H
-    mov P0M2, #00H
-    mov P1M1, #00H
-    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
-    mov P2M1, #00H
-    mov P2M2, #00H
-    mov P3M1, #00H
-    mov P3M2, #00H
+ ;   mov P0M1, #00H
+ ;   mov P0M2, #00H
+ ;   mov P1M1, #00H
+ ;   mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
+ ;   mov P2M1, #00H
+ ;   mov P2M2, #00H
+ ;   mov P3M1, #00H
+ ;   mov P3M2, #00H
         ; Initialization_LCD
         lcall LCD_4BIT
         ; Initialization_Termometer

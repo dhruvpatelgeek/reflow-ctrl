@@ -191,7 +191,7 @@
 0000            189   CCF0           BIT 0xd8
 0000              3           ; Reset vector
 0000              4           org 0x0000
-0000 0208DC       5               ljmp MainProgram
+0000 020B03       5               ljmp MainProgram
 0003              6   
 0003              7           ; External interrupt 0 vector (not used in this code)
 0003              8           org 0x0003
@@ -259,1041 +259,1322 @@
 004A             70       ;Timer variables
 004A             71       Count1ms:     ds 2 ; Used to determine when half second has passed
 004C             72       reflow_temp:  ds 2
-004E             73       reflow_temp_var: ds 1
-004F             74       BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
-0050             75       min:          ds 1
-0051             76       hour:         ds 1
-0052             77       reflow_sec:   ds 1
-0053             78       reflow_min:   ds 1
-0054             79       alarm_min:    ds 1
-0055             80       alarm_hour:   ds 1
-0056             81       day:          ds 1
-0057             82       month:        ds 1
-0058             83       year:         ds 1
-0059             84       hour_24:      ds 1
-005A             85   
-005A             86   
-005A             87   ;flags (bseg)
-0000             88       bseg
-0000             89       mf:                dbit 1
-0001             90       half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
-0002             91       AMPM_flag:         dbit 1
-0003             92       alarm_AMPM_flag:   dbit 1
-0004             93       on_off_flag:       dbit 1 ; 1 is on
-0005             94       alarm_buzzer_flag: dbit 1
-0006             95       TR2_flag:          dbit 1
-0007             96       tt_reflow_flag:    dbit 1
-0008             97   
-0008             98   ;Pins Config (cseg)
-002E             99       CSEG 
-002E            100   
-002E            101       done_button equ P0.0    
-002E            102       done                   equ P0.1
-002E            103       setup                  equ P0.2
-002E            104       setmin                 equ P0.3
-002E            105       sethour        equ P0.4
-002E            106      ; setday        equ P0.5
-002E            107   
-002E            108       ;start         equ P0.7
-002E            109   
-002E            110       LCD_RS        equ P0.5
-002E            111       LCD_RW        equ P0.6
-002E            112       LCD_E         equ P0.7
-002E            113       start2         equ p1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is just a random pin
-002E            114   
-002E            115   
-002E            116       ; These �EQU� must match the wiring between the microcontroller and ADC 
-002E            117       CE_ADC       EQU  P2.0 
-002E            118       MY_MOSI      EQU  P2.1 
-002E            119       MY_MISO      EQU  P2.2 
-002E            120       MY_SCLK      EQU  P2.3
-002E            121       SETUP_SOAK_Button equ  P2.4
-002E            122       set_BUTTON           equ  P2.5
-002E            123       Button_min    equ  P2.6
-002E            124       HOME_BUTTON   equ  P2.7
-002E            125   
-002E            126       ;LCD 4bits data
-002E            127       LCD_D4        equ  P1.2
-002E            128       LCD_D5        equ  P1.3
-002E            129       LCD_D6        equ  P1.4
-002E            130       LCD_D7        equ  P1.6
-002E            131   
-002E            132       BOOT_BUTTON   equ  P4.5
-002E            133       SOUND_OUT     equ  P3.7
-002E            134   
-002E            135   ;include files 
+004E             73       soak_temp:    ds 2
+0050             74       reflow_temp_var: ds 1
+0051             75       BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
+0052             76       min:          ds 1
+0053             77       hour:         ds 1
+0054             78       reflow_sec:   ds 1
+0055             79       reflow_min:   ds 1
+0056             80       soak_sec:     ds 1
+0057             81       soak_min:     ds 1
+0058             82       alarm_min:    ds 1
+0059             83       alarm_hour:   ds 1
+005A             84       day:          ds 1
+005B             85       month:        ds 1
+005C             86       year:         ds 1
+005D             87       hour_24:      ds 1
+005E             88   
+005E             89   
+005E             90   ;flags (bseg)
+0000             91       bseg
+0000             92       mf:                dbit 1
+0001             93       half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
+0002             94       AMPM_flag:         dbit 1
+0003             95       alarm_AMPM_flag:   dbit 1
+0004             96       on_off_flag:       dbit 1 ; 1 is on
+0005             97       alarm_buzzer_flag: dbit 1
+0006             98       TR2_flag:          dbit 1
+0007             99       tt_reflow_flag:    dbit 1
+0008            100       tt_flag_soak:      dbit 1
+0009            101   
+0009            102   ;Pins Config (cseg)
+002E            103       CSEG 
+002E            104   
+002E            105       done_button equ P0.0    
+002E            106       done                   equ P0.1
+002E            107       setup                  equ P0.2
+002E            108       setmin                 equ P0.3
+002E            109       sethour        equ P0.4
+002E            110       setday        equ P0.5
+002E            111   
+002E            112       start         equ P0.7
+002E            113   
+002E            114       LCD_RS        equ P1.1
+002E            115       LCD_RW        equ P1.2
+002E            116       LCD_E         equ P1.3
+002E            117       start2         equ p1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is just a random pin
+002E            118   
+002E            119   
+002E            120       ; These �EQU� must match the wiring between the microcontroller and ADC 
+002E            121       CE_ADC       EQU  P2.0 
+002E            122       MY_MOSI      EQU  P2.1 
+002E            123       MY_MISO      EQU  P2.2 
+002E            124       MY_SCLK      EQU  P2.3
+002E            125       SETUP_SOAK_Button equ  P2.4
+002E            126       set_BUTTON           equ  P2.5
+002E            127       Button_min    equ  P2.6
+002E            128       HOME_BUTTON   equ  P2.7
+002E            129   
+002E            130       ;LCD 4bits data
+002E            131       LCD_D4        equ  P3.2
+002E            132       LCD_D5        equ  P3.3
+002E            133       LCD_D6        equ  P3.4
+002E            134       LCD_D7        equ  P3.5
+002E            135   
+002E            136       BOOT_BUTTON   equ  P4.5
+002E            137       SOUND_OUT     equ  P3.7
+002E            138   
+002E            139   ;include files 
                 546   $LIST
-                138   	    $LIST
-0362            140   
-0362            141   
-0362            142   ;ISR
-0362            143   
-0362            144       
-0362            145       ;---------------------------------;
-0362            146       ; Routine to initialize the ISR   ;
-0362            147       ; for timer 0                     ;
-0362            148       ;---------------------------------;
-0362            149       Timer0_Init:
-0362 E589       150           mov a, TMOD
-0364 54F0       151           anl a, #0xf0 ; Clear the bits for timer 0
-0366 4401       152           orl a, #0x01 ; Configure timer 0 as 16-timer
-0368 F589       153           mov TMOD, a
-036A 758CEA     154           mov TH0, #high(TIMER0_RELOAD)
-036D 758AE8     155           mov TL0, #low(TIMER0_RELOAD)
-0370            156           ; Set autoreload value
-0370 75F4EA     157           mov TIMER0_RELOAD_H, #high(TIMER0_RELOAD)
-0373 75F2E8     158           mov TIMER0_RELOAD_L, #low(TIMER0_RELOAD)
-0376            159           ; Enable the timer and interrupts
-0376 D2A9       160           setb ET0  ; Enable timer 0 interrupt
-0378 D28C       161           setb TR0  ; Start timer 0
-037A 22         162           ret
-037B            163   
-037B            164       ;---------------------------------;
-037B            165       ; ISR for timer 0.  Set to execute;
-037B            166       ; every 1/4096Hz to generate a    ;
-037B            167       ; 2048 Hz square wave at pin P3.7 ;
+                142   	    $LIST
+0362            144   
+0362            145   
+0362            146   ;ISR
+0362            147   
+0362            148       
+0362            149       ;---------------------------------;
+0362            150       ; Routine to initialize the ISR   ;
+0362            151       ; for timer 0                     ;
+0362            152       ;---------------------------------;
+0362            153       Timer0_Init:
+0362 E589       154           mov a, TMOD
+0364 54F0       155           anl a, #0xf0 ; Clear the bits for timer 0
+0366 4401       156           orl a, #0x01 ; Configure timer 0 as 16-timer
+0368 F589       157           mov TMOD, a
+036A 758CEA     158           mov TH0, #high(TIMER0_RELOAD)
+036D 758AE8     159           mov TL0, #low(TIMER0_RELOAD)
+0370            160           ; Set autoreload value
+0370 75F4EA     161           mov TIMER0_RELOAD_H, #high(TIMER0_RELOAD)
+0373 75F2E8     162           mov TIMER0_RELOAD_L, #low(TIMER0_RELOAD)
+0376            163           ; Enable the timer and interrupts
+0376 D2A9       164           setb ET0  ; Enable timer 0 interrupt
+0378 D28C       165           setb TR0  ; Start timer 0
+037A 22         166           ret
+037B            167   
 037B            168       ;---------------------------------;
-037B            169       Timer0_ISR:
-037B            170           ;clr TF0  ; According to the data sheet this is done for us already.
-037B B2B7       171           cpl SOUND_OUT ; Connect speaker to P3.7!
-037D 32         172           reti
-037E            173   
-037E            174       ;---------------------------------;
-037E            175       ; Routine to initialize the ISR   ;
-037E            176       ; for timer 2                     ;
-037E            177       ;---------------------------------;
-037E            178       Timer2_Init:
-037E 75C800     179           mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
-0381 75CDA9     180           mov TH2, #high(TIMER2_RELOAD)
-0384 75CC9A     181           mov TL2, #low(TIMER2_RELOAD)
-0387            182           ; Set the reload value
-0387 75CBA9     183           mov RCAP2H, #high(TIMER2_RELOAD)
-038A 75CA9A     184           mov RCAP2L, #low(TIMER2_RELOAD)
-038D            185           ; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
-038D E4         186           clr a
-038E F54A       187           mov Count1ms+0, a
-0390 F54B       188           mov Count1ms+1, a
-0392            189           ; Enable the timer and interrupts
-0392 D2AD       190           setb ET2  ; Enable timer 2 interrupt
-0394 D2CA       191           setb TR2  ; Enable timer 2
-0396 22         192           ret
-0397            193   
-0397            194       ;---------------------------------;
-0397            195       ; ISR for timer 2                 ;
-0397            196       ;---------------------------------;
-0397            197       Timer2_ISR:
-0397 C2CF       198           clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in ISR
-0399 B2B6       199           cpl P3.6 ; To check the interrupt rate with oscilloscope. It must be precisely a 1 ms pulse.
-039B            200           
-039B            201           ; The two registers used in the ISR must be saved in the stack
-039B C0E0       202           push acc
-039D C0D0       203           push psw
-039F            204           
-039F            205           ; Increment the 16-bit one mili second counter
-039F 054A       206           inc Count1ms+0    ; Increment the low 8-bits first
-03A1 E54A       207           mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
-03A3 7002       208           jnz Inc_Done
-03A5 054B       209           inc Count1ms+1
-03A7            210   
-03A7            211       Inc_Done:
-03A7            212           ; Check if half second has passed
-03A7 E54A       213           mov a, Count1ms+0
-03A9 B4E817     214           cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
-03AC E54B       215           mov a, Count1ms+1
-03AE B40312     216           cjne a, #high(1000), Timer2_ISR_done
-03B1            217           
-03B1            218           ; 500 milliseconds have passed.  Set a flag so the main program knows
-03B1 D201       219           setb half_seconds_flag ; Let the main program know half second had passed
-03B3 B28C       220           cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
-03B5            221           ; Reset to zero the milli-seconds counter, it is a 16-bit variable
-03B5 E4         222           clr a
-03B6 F54A       223           mov Count1ms+0, a
-03B8 F54B       224           mov Count1ms+1, a
-03BA            225           ; Increment the BCD counter
-03BA E54F       226           mov a, BCD_counter
-03BC            227          ; jnb UPDOWN, Timer2_ISR_decrement
-03BC 2401       228           add a, #0x01
-03BE 8000       229           sjmp Timer2_ISR_da
-03C0            230       Timer2_ISR_decrement:
-03C0            231          ; add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-03C0            232       Timer2_ISR_da:
-03C0 D4         233           da a ; Decimal adjust instruction.  Check datasheet for more details!
-03C1 F54F       234           mov BCD_counter, a
-03C3            235           
-03C3            236       Timer2_ISR_done:
-03C3 D0D0       237           pop psw
-03C5 D0E0       238           pop acc
-03C7 32         239           reti
-03C8            240   
-03C8            241   
-03C8            242   ;CONFIG:
-03C8            243       ; Configure the serial port and baud rate
-03C8            244       InitSerialPort:
-03C8            245           ; Since the reset button bounces, we need to wait a bit before
-03C8            246           ; sending messages, otherwise we risk displaying gibberish!
-03C8 79DE       247           mov R1, #222
-03CA 78A6       248           mov R0, #166
-03CC D8FE       249           djnz R0, $   ; 3 cycles->3*45.21123ns*166=22.51519us
-03CE D9FA       250           djnz R1, $-4 ; 22.51519us*222=4.998ms
-03D0            251           ; Now we can proceed with the configuration
-03D0 438780     252           orl      PCON,#0x80
-03D3 759852     253           mov      SCON,#0x52
-03D6 759B00     254           mov      BDRCON,#0x00
-03D9 759AF4     255           mov      BRL,#BRG_VAL
-03DC 759B1E     256           mov      BDRCON,#0x1E ; BDRCON=BRR|TBCK|RBCK|SPD;
-03DF 22         257           ret
-03E0            258   
-03E0            259       ; Send a character using the serial port
-03E0            260       putchar:
-03E0 3099FD     261           jnb TI, putchar 
-03E3            262           ; TI serial interrupt flag is set and when last bit (stop bit) 
-03E3            263           ; of receiving data byte is received, RI flag get set. IE register
-03E3            264           ; is used to enable/disable interrupt sources.
-03E3 C299       265           clr TI
-03E5 F599       266           mov SBUF, a
-03E7 22         267           ret
-03E8            268   
-03E8            269       getchar: 
-03E8 3098FD     270           jnb RI, getchar 
-03EB C298       271           clr RI 
-03ED E599       272           mov a, SBUF 
-03EF 22         273           ret
-03F0            274   
-03F0            275       ; Send a constant-zero-terminated string using the serial port
-03F0            276       SendString:
-03F0 E4         277           clr A
-03F1 93         278           movc A, @A+DPTR
-03F2 6006       279           jz SendStringDone
-03F4 1203E0     280           lcall putchar
-03F7 A3         281           inc DPTR
-03F8 80F6       282           sjmp SendString
-03FA            283       SendStringDone:
-03FA 22         284           ret
-03FB            285   
-03FB            286       INIT_SPI:     
-03FB D2A2       287           setb MY_MISO    ; Make MISO an input pin  1 master input 0 slave out   ;MISO master in/slave out
-03FD C2A3       288           clr MY_SCLK     ; For mode (0,0) SCLK is zero     
-03FF 22         289           ret 
-0400            290   
-0400            291       DO_SPI_G:     
-0400 C0E0       292           push acc     
-0402 7900       293           mov R1, #0      ; Received byte stored in R1     
-0404 7A08       294           mov R2, #8      ; Loop counter (8-bits)
-0406            295           
-0406            296       DO_SPI_G_LOOP:     
-0406 E8         297           mov a, R0       ; Byte to write is in R0     
-0407 33         298           rlc a           ; Carry flag has bit to write 
-0408 F8         299           mov R0, a     
-0409 92A1       300           mov MY_MOSI, c     
-040B D2A3       301           setb MY_SCLK    ; Transmit     
-040D A2A2       302           mov c, MY_MISO  ; Read received bit     
-040F E9         303           mov a, R1       ; Save received bit in R1     
-0410 33         304           rlc a     
-0411 F9         305           mov R1, a     
-0412 C2A3       306           clr MY_SCLK     
-0414 DAF0       307           djnz R2, DO_SPI_G_LOOP     
-0416 D0E0       308           pop acc     
-0418 22         309           ret 
-0419            310       
-0419            311   WaitHalfSec:
-0419 7AB2       312           mov R2, #178
-041B 79FA       313           Lr3: mov R1, #250
-041D 78A6       314           Lr2: mov R0, #166
-041F D8FE       315           Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
-0421 D9FA       316           djnz R1, Lr2 ; 22.51519us*250=5.629ms
-0423 DAF6       317           djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
-0425 22         318           ret
-0426            319            
-0426            320   blink:
-0426 75817F     321           mov SP, #7FH
-0429 75C700     322           mov P3M1, #0   ; Configure P3 in bidirectional mode
-042C            323       M0:
-042C B2B7       324           cpl P3.7
-042E C0E0       325            push acc
-0430 7401       325            mov a, #1
-0432 14         325            dec a
-0433 120331     325            lcall ?Set_Cursor_1 ; Select column and row
-0436 D0E0       325            pop acc
-0438 C083       326            push dph
-043A C082       326            push dpl
-043C C0E0       326            push acc
-043E 9004BF     326            mov dptr, #nothing
-0441 120324     326            lcall ?Send_Constant_String
-0444 D0E0       326            pop acc
-0446 D082       326            pop dpl
-0448 D083       326            pop dph
-044A C0E0       327            push acc
-044C 7401       327            mov a, #1
-044E 14         327            dec a
-044F 12032F     327            lcall ?Set_Cursor_2 ; Select column and row
-0452 D0E0       327            pop acc
-0454 C083       328            push dph
-0456 C082       328            push dpl
-0458 C0E0       328            push acc
-045A 9004BF     328            mov dptr, #nothing
-045D 120324     328            lcall ?Send_Constant_String
-0460 D0E0       328            pop acc
-0462 D082       328            pop dpl
-0464 D083       328            pop dph
-0466 C0E0       329            push acc
-0468 7401       329            mov a, #1
-046A 14         329            dec a
-046B 120331     329            lcall ?Set_Cursor_1 ; Select column and row
-046E D0E0       329            pop acc
-0470 C083       330            push dph
-0472 C082       330            push dpl
-0474 C0E0       330            push acc
-0476 9004E1     330            mov dptr, #hot
-0479 120324     330            lcall ?Send_Constant_String
-047C D0E0       330            pop acc
-047E D082       330            pop dpl
-0480 D083       330            pop dph
-0482 C0E0       331            push acc
-0484 7401       331            mov a, #1
-0486 14         331            dec a
-0487 12032F     331            lcall ?Set_Cursor_2 ; Select column and row
-048A D0E0       331            pop acc
-048C C083       332            push dph
-048E C082       332            push dpl
-0490 C0E0       332            push acc
-0492 9004E1     332            mov dptr, #hot
-0495 120324     332            lcall ?Send_Constant_String
-0498 D0E0       332            pop acc
-049A D082       332            pop dpl
-049C D083       332            pop dph
-049E            333   
-049E 120419     334           lcall WaitHalfSec
-04A1            335   
-04A1 22         336           ret
-04A2            337   
-04A2            338       
-04A2            339   Strings:
-04A2            340       ;Hello_World:
-04A2            341           ;DB  'Hello, World!', '\r', '\n', 0
-04A2            342       Newline:
-04A2 0D0A00     343               DB   '\r', '\n', 0
-04A5            344       Space:
-04A5 20202020   345               DB   '      ','\r', '\n', 0
+037B            169       ; ISR for timer 0.  Set to execute;
+037B            170       ; every 1/4096Hz to generate a    ;
+037B            171       ; 2048 Hz square wave at pin P3.7 ;
+037B            172       ;---------------------------------;
+037B            173       Timer0_ISR:
+037B            174           ;clr TF0  ; According to the data sheet this is done for us already.
+037B B2B7       175           cpl SOUND_OUT ; Connect speaker to P3.7!
+037D 32         176           reti
+037E            177   
+037E            178       ;---------------------------------;
+037E            179       ; Routine to initialize the ISR   ;
+037E            180       ; for timer 2                     ;
+037E            181       ;---------------------------------;
+037E            182       Timer2_Init:
+037E 75C800     183           mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
+0381 75CDA9     184           mov TH2, #high(TIMER2_RELOAD)
+0384 75CC9A     185           mov TL2, #low(TIMER2_RELOAD)
+0387            186           ; Set the reload value
+0387 75CBA9     187           mov RCAP2H, #high(TIMER2_RELOAD)
+038A 75CA9A     188           mov RCAP2L, #low(TIMER2_RELOAD)
+038D            189           ; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
+038D E4         190           clr a
+038E F54A       191           mov Count1ms+0, a
+0390 F54B       192           mov Count1ms+1, a
+0392            193           ; Enable the timer and interrupts
+0392 D2AD       194           setb ET2  ; Enable timer 2 interrupt
+0394 D2CA       195           setb TR2  ; Enable timer 2
+0396 22         196           ret
+0397            197   
+0397            198       ;---------------------------------;
+0397            199       ; ISR for timer 2                 ;
+0397            200       ;---------------------------------;
+0397            201       Timer2_ISR:
+0397 C2CF       202           clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in ISR
+0399 B2B6       203           cpl P3.6 ; To check the interrupt rate with oscilloscope. It must be precisely a 1 ms pulse.
+039B            204           
+039B            205           ; The two registers used in the ISR must be saved in the stack
+039B C0E0       206           push acc
+039D C0D0       207           push psw
+039F            208           
+039F            209           ; Increment the 16-bit one mili second counter
+039F 054A       210           inc Count1ms+0    ; Increment the low 8-bits first
+03A1 E54A       211           mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
+03A3 7002       212           jnz Inc_Done
+03A5 054B       213           inc Count1ms+1
+03A7            214   
+03A7            215       Inc_Done:
+03A7            216           ; Check if half second has passed
+03A7 E54A       217           mov a, Count1ms+0
+03A9 B4E817     218           cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
+03AC E54B       219           mov a, Count1ms+1
+03AE B40312     220           cjne a, #high(1000), Timer2_ISR_done
+03B1            221           
+03B1            222           ; 500 milliseconds have passed.  Set a flag so the main program knows
+03B1 D201       223           setb half_seconds_flag ; Let the main program know half second had passed
+03B3 B28C       224           cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
+03B5            225           ; Reset to zero the milli-seconds counter, it is a 16-bit variable
+03B5 E4         226           clr a
+03B6 F54A       227           mov Count1ms+0, a
+03B8 F54B       228           mov Count1ms+1, a
+03BA            229           ; Increment the BCD counter
+03BA E551       230           mov a, BCD_counter
+03BC            231          ; jnb UPDOWN, Timer2_ISR_decrement
+03BC 2401       232           add a, #0x01
+03BE 8000       233           sjmp Timer2_ISR_da
+03C0            234       Timer2_ISR_decrement:
+03C0            235          ; add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+03C0            236       Timer2_ISR_da:
+03C0 D4         237           da a ; Decimal adjust instruction.  Check datasheet for more details!
+03C1 F551       238           mov BCD_counter, a
+03C3            239           
+03C3            240       Timer2_ISR_done:
+03C3 D0D0       241           pop psw
+03C5 D0E0       242           pop acc
+03C7 32         243           reti
+03C8            244   
+03C8            245   
+03C8            246   ;CONFIG:
+03C8            247       ; Configure the serial port and baud rate
+03C8            248       InitSerialPort:
+03C8            249           ; Since the reset button bounces, we need to wait a bit before
+03C8            250           ; sending messages, otherwise we risk displaying gibberish!
+03C8 79DE       251           mov R1, #222
+03CA 78A6       252           mov R0, #166
+03CC D8FE       253           djnz R0, $   ; 3 cycles->3*45.21123ns*166=22.51519us
+03CE D9FA       254           djnz R1, $-4 ; 22.51519us*222=4.998ms
+03D0            255           ; Now we can proceed with the configuration
+03D0 438780     256           orl      PCON,#0x80
+03D3 759852     257           mov      SCON,#0x52
+03D6 759B00     258           mov      BDRCON,#0x00
+03D9 759AF4     259           mov      BRL,#BRG_VAL
+03DC 759B1E     260           mov      BDRCON,#0x1E ; BDRCON=BRR|TBCK|RBCK|SPD;
+03DF 22         261           ret
+03E0            262   
+03E0            263       ; Send a character using the serial port
+03E0            264       putchar:
+03E0 3099FD     265           jnb TI, putchar 
+03E3            266           ; TI serial interrupt flag is set and when last bit (stop bit) 
+03E3            267           ; of receiving data byte is received, RI flag get set. IE register
+03E3            268           ; is used to enable/disable interrupt sources.
+03E3 C299       269           clr TI
+03E5 F599       270           mov SBUF, a
+03E7 22         271           ret
+03E8            272   
+03E8            273       getchar: 
+03E8 3098FD     274           jnb RI, getchar 
+03EB C298       275           clr RI 
+03ED E599       276           mov a, SBUF 
+03EF 22         277           ret
+03F0            278   
+03F0            279       ; Send a constant-zero-terminated string using the serial port
+03F0            280       SendString:
+03F0 E4         281           clr A
+03F1 93         282           movc A, @A+DPTR
+03F2 6006       283           jz SendStringDone
+03F4 1203E0     284           lcall putchar
+03F7 A3         285           inc DPTR
+03F8 80F6       286           sjmp SendString
+03FA            287       SendStringDone:
+03FA 22         288           ret
+03FB            289   
+03FB            290       INIT_SPI:     
+03FB D2A2       291           setb MY_MISO    ; Make MISO an input pin  1 master input 0 slave out   ;MISO master in/slave out
+03FD C2A3       292           clr MY_SCLK     ; For mode (0,0) SCLK is zero     
+03FF 22         293           ret 
+0400            294   
+0400            295       DO_SPI_G:     
+0400 C0E0       296           push acc     
+0402 7900       297           mov R1, #0      ; Received byte stored in R1     
+0404 7A08       298           mov R2, #8      ; Loop counter (8-bits)
+0406            299           
+0406            300       DO_SPI_G_LOOP:     
+0406 E8         301           mov a, R0       ; Byte to write is in R0     
+0407 33         302           rlc a           ; Carry flag has bit to write 
+0408 F8         303           mov R0, a     
+0409 92A1       304           mov MY_MOSI, c     
+040B D2A3       305           setb MY_SCLK    ; Transmit     
+040D A2A2       306           mov c, MY_MISO  ; Read received bit     
+040F E9         307           mov a, R1       ; Save received bit in R1     
+0410 33         308           rlc a     
+0411 F9         309           mov R1, a     
+0412 C2A3       310           clr MY_SCLK     
+0414 DAF0       311           djnz R2, DO_SPI_G_LOOP     
+0416 D0E0       312           pop acc     
+0418 22         313           ret 
+0419            314       
+0419            315   WaitHalfSec:
+0419 7AB2       316           mov R2, #178
+041B 79FA       317           Lr3: mov R1, #250
+041D 78A6       318           Lr2: mov R0, #166
+041F D8FE       319           Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
+0421 D9FA       320           djnz R1, Lr2 ; 22.51519us*250=5.629ms
+0423 DAF6       321           djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
+0425 22         322           ret
+0426            323            
+0426            324   blink:
+0426 75817F     325           mov SP, #7FH
+0429 75C700     326           mov P3M1, #0   ; Configure P3 in bidirectional mode
+042C            327       M0:
+042C B2B7       328           cpl P3.7
+042E C0E0       329            push acc
+0430 7401       329            mov a, #1
+0432 14         329            dec a
+0433 120331     329            lcall ?Set_Cursor_1 ; Select column and row
+0436 D0E0       329            pop acc
+0438 C083       330            push dph
+043A C082       330            push dpl
+043C C0E0       330            push acc
+043E 9004BF     330            mov dptr, #nothing
+0441 120324     330            lcall ?Send_Constant_String
+0444 D0E0       330            pop acc
+0446 D082       330            pop dpl
+0448 D083       330            pop dph
+044A C0E0       331            push acc
+044C 7401       331            mov a, #1
+044E 14         331            dec a
+044F 12032F     331            lcall ?Set_Cursor_2 ; Select column and row
+0452 D0E0       331            pop acc
+0454 C083       332            push dph
+0456 C082       332            push dpl
+0458 C0E0       332            push acc
+045A 9004BF     332            mov dptr, #nothing
+045D 120324     332            lcall ?Send_Constant_String
+0460 D0E0       332            pop acc
+0462 D082       332            pop dpl
+0464 D083       332            pop dph
+0466 C0E0       333            push acc
+0468 7401       333            mov a, #1
+046A 14         333            dec a
+046B 120331     333            lcall ?Set_Cursor_1 ; Select column and row
+046E D0E0       333            pop acc
+0470 C083       334            push dph
+0472 C082       334            push dpl
+0474 C0E0       334            push acc
+0476 9004E1     334            mov dptr, #hot
+0479 120324     334            lcall ?Send_Constant_String
+047C D0E0       334            pop acc
+047E D082       334            pop dpl
+0480 D083       334            pop dph
+0482 C0E0       335            push acc
+0484 7401       335            mov a, #1
+0486 14         335            dec a
+0487 12032F     335            lcall ?Set_Cursor_2 ; Select column and row
+048A D0E0       335            pop acc
+048C C083       336            push dph
+048E C082       336            push dpl
+0490 C0E0       336            push acc
+0492 9004E1     336            mov dptr, #hot
+0495 120324     336            lcall ?Send_Constant_String
+0498 D0E0       336            pop acc
+049A D082       336            pop dpl
+049C D083       336            pop dph
+049E            337   
+049E 120419     338           lcall WaitHalfSec
+04A1            339   
+04A1 22         340           ret
+04A2            341   
+04A2            342       
+04A2            343   Strings:
+04A2            344       ;Hello_World:
+04A2            345           ;DB  'Hello, World!', '\r', '\n', 0
+04A2            346       Newline:
+04A2 0D0A00     347               DB   '\r', '\n', 0
+04A5            348       Space:
+04A5 20202020   349               DB   '      ','\r', '\n', 0
      20200D0A
      00
-04AE            346   
-04AE            347                       ;     1234567890123456
-04AE 54656D70   348       Temp0:            db 'Temp:xxxC       ', 0
+04AE            350   
+04AE            351                       ;     1234567890123456
+04AE 54656D70   352       Temp0:            db 'Temp:xxxC       ', 0
      3A787878
      43202020
      20202020
      00
-04BF 20202020   349       nothing:          db '                ',0
+04BF 20202020   353       nothing:          db '                ',0
      20202020
      20202020
      20202020
      00
-04D0 20202020   350       test2:            db '      Test2     ',0
+04D0 20202020   354       test2:            db '      Test2     ',0
      20205465
      73743220
      20202020
      00
-04E1 20202020   351       hot:                           db '      HOT       ', 0
+04E1 20202020   355       hot:                           db '      HOT       ', 0
      2020484F
      54202020
      20202020
      00
-04F2 54696D65   352       Time:             db 'Time xx:xx SET  ', 0
+04F2 54696D65   356       Time:             db 'Time xx:xx SET  ', 0
      2078783A
      78782053
      45542020
      00
-0503 3A00       353       dots:             db ':',0
-0505 2020534F   354       soak_reflw:       db '  SOAK  REFLOW  ', 0
+0503 3A00       357       dots:             db ':',0
+0505 2020534F   358       soak_reflw:       db '  SOAK  REFLOW  ', 0
      414B2020
      5245464C
      4F572020
      00
-0516 54656D70   355       reflow_setup:     db 'Temp',0
+0516 54656D70   359       reflow_setup:     db 'Temp',0
      00
-051B 2A524546   356       reflow_setup4:    db '*REFLOW*',0
+051B 2A524546   360       reflow_setup4:    db '*REFLOW*',0
      4C4F572A
      00
-0524 54696D65   357       reflow_setup2:    db 'Time',0
+0524 54696D65   361       reflow_setup2:    db 'Time',0
      00
-0529 484F4D45   358       reflow_setup3:    db 'HOME',0
+0529 484F4D45   362       reflow_setup3:    db 'HOME',0
      00
-052E            359   
-052E            360   
-052E            361   convert:
-052E 853034     362       mov x+0, Result
-0531 853135     363            mov x+1, Result+1 
-0534 753600     364            mov x+2, #0
-0537 753700     365            mov x+3, #0
-053A 22         366       ret
-053B            367   Display_temp:
-053B 75389A     368            mov y+0, #low (410 % 0x10000) 
-053E 753901     368            mov y+1, #high(410 % 0x10000) 
-0541 753A00     368            mov y+2, #low (410 / 0x10000) 
-0544 753B00     368            mov y+3, #high(410 / 0x10000) 
-0547            368   
-0547 1201A8     369       lcall mul32
-054A 7538FF     370            mov y+0, #low (1023 % 0x10000) 
-054D 753903     370            mov y+1, #high(1023 % 0x10000) 
-0550 753A00     370            mov y+2, #low (1023 / 0x10000) 
-0553 753B00     370            mov y+3, #high(1023 / 0x10000) 
-0556 120235     371       lcall div32
-0559 753811     372            mov y+0, #low (273 % 0x10000) 
-055C 753901     372            mov y+1, #high(273 % 0x10000) 
-055F 753A00     372            mov y+2, #low (273 / 0x10000) 
-0562 753B00     372            mov y+3, #high(273 / 0x10000) 
-0565 120114     373       lcall sub32
-0568 12002E     374       lcall hex2bcd
-056B 1203C8     375       lcall InitSerialPort
-056E C0E0       376            push acc
-0570 7401       376            mov a, #1
-0572 14         376            dec a
-0573 120331     376            lcall ?Set_Cursor_1 ; Select column and row
-0576 D0E0       376            pop acc
-0578 C083       377            push dph
-057A C082       377            push dpl
-057C C0E0       377            push acc
-057E 9004AE     377            mov dptr, #Temp0
-0581 120324     377            lcall ?Send_Constant_String
-0584 D0E0       377            pop acc
-0586 D082       377            pop dpl
-0588 D083       377            pop dph
-058A 1203F0     378       lcall SendString
-058D C0E0       379            push acc
-058F 7405       379            mov a, #5
-0591 14         379            dec a
-0592 120331     379            lcall ?Set_Cursor_1 ; Select column and row
-0595 D0E0       379            pop acc    
-0597 C000       380            push ar0
-0599 A83D       380            mov r0, bcd+1
-059B 12034C     380            lcall ?Send_BCD
-059E D000       380            pop ar0 ; send fisrt 2 digits to putty
-05A0 C000       381            push ar0
-05A2 A83D       381            mov r0, bcd+1
-05A4 120336     381            lcall ?Display_BCD
-05A7 D000       381            pop ar0; send fisrt 2 digits to lcd
-05A9 C0E0       382            push acc
-05AB 7407       382            mov a, #7
-05AD 14         382            dec a
-05AE 120331     382            lcall ?Set_Cursor_1 ; Select column and row
-05B1 D0E0       382            pop acc 
-05B3 C000       383            push ar0
-05B5 A83C       383            mov r0, bcd
-05B7 12034C     383            lcall ?Send_BCD
-05BA D000       383            pop ar0 ; send last 2 digits to putty
-05BC C000       384            push ar0
-05BE A83C       384            mov r0, bcd+0
-05C0 120336     384            lcall ?Display_BCD
-05C3 D000       384            pop ar0 ; send last 2 digits to lcd
-05C5 C0E0       385            push acc
-05C7 7405       385            mov a, #5
-05C9 14         385            dec a
-05CA 120331     385            lcall ?Set_Cursor_1 ; Select column and row
-05CD D0E0       385            pop acc
-05CF C083       386            push dph
-05D1 C082       386            push dpl
-05D3 C0E0       386            push acc
-05D5 900503     386            mov dptr, #dots
-05D8 120324     386            lcall ?Send_Constant_String
-05DB D0E0       386            pop acc
-05DD D082       386            pop dpl
-05DF D083       386            pop dph
-05E1 1203F0     387       lcall SendString
-05E4 9004A2     388       mov DPTR, #Newline
-05E7 1203F0     389       lcall SendString
-05EA 22         390       ret
-05EB            391   config_adc:
-05EB C2A0       392           clr CE_ADC 
-05ED 7801       393           mov R0, #00000001B; Start bit:1 
-05EF 120400     394           lcall DO_SPI_G
-05F2            395   
-05F2 7880       396           mov R0, #10000000B; Single ended, read channel 0 
-05F4 120400     397           lcall DO_SPI_G 
-05F7 E9         398           mov a, R1          ; R1 contains bits 8 and 9 
-05F8 5403       399           anl a, #00000011B  ; We need only the two least significant bits 
-05FA F531       400           mov Result+1, a    ; Save result high.
-05FC            401   
-05FC 7855       402           mov R0, #55H; It doesn't matter what we transmit... 
-05FE 120400     403           lcall DO_SPI_G 
-0601 8930       404           mov Result, R1     ; R1 contains bits 0 to 7.  Save result low. 
-0603 D2A0       405           setb CE_ADC 
-0605 12052E     406           lcall convert  
-0608 E53C       407           mov a, bcd ; move temp to accumulator 
-060A 22         408           ret
-060B            409   Reset_timer:
-060B            410   
-060B C2CA       411       clr TR2                 ; Stop timer 2
-060D E4         412       clr a
-060E F54A       413            mov Count1ms+0, a
-0610 F54B       414            mov Count1ms+1, a
-0612            415            ; Now clear the BCD counter and min
-0612 F54F       416            mov BCD_counter, a
-0614 D2CA       417            setb TR2                ; Start timer 2
-0616            418   
-0616 22         419       ret
-0617            420   Display_time:
-0617 C0E0       421            push acc
-0619 7401       421            mov a, #1
-061B 14         421            dec a
-061C 12032F     421            lcall ?Set_Cursor_2 ; Select column and row
-061F D0E0       421            pop acc
-0621 C083       422            push dph
-0623 C082       422            push dpl
-0625 C0E0       422            push acc
-0627 9004F2     422            mov dptr, #Time
-062A 120324     422            lcall ?Send_Constant_String
-062D D0E0       422            pop acc
-062F D082       422            pop dpl
-0631 D083       422            pop dph
-0633 C201       423       clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
-0635 C0E0       424            push acc
-0637 7409       424            mov a, #9
-0639 14         424            dec a
-063A 12032F     424            lcall ?Set_Cursor_2 ; Select column and row
-063D D0E0       424            pop acc     ; the place in the LCD where we want the BCD counter value
-063F C000       425            push ar0
-0641 A84F       425            mov r0, BCD_counter
-0643 120336     425            lcall ?Display_BCD
-0646 D000       425            pop ar0 ; This macro is also in 'LCD_4bit.inc'
-0648 C0E0       426            push acc
-064A 7406       426            mov a, #6
-064C 14         426            dec a
-064D 12032F     426            lcall ?Set_Cursor_2 ; Select column and row
-0650 D0E0       426            pop acc     ; the place in the LCD where we want the BCD counter value
-0652 C000       427            push ar0
-0654 A850       427            mov r0, min
-0656 120336     427            lcall ?Display_BCD
-0659 D000       427            pop ar0 ; This macro is also in 'LCD_4bit.inc'
-065B            428   
-065B 22         429       ret
-065C            430   ;Timer couter 
-065C            431       sec_counter: 
-065C E54F       432           mov a,BCD_counter
-065E B4600A     433           cjne a, #0x60, Continue1 ; check if the couter reached 60s
-0661 E550       434           mov a, min
-0663 2401       435           add a, #0x01 ; add one to the minutes
-0665 D4         436           da a ; Decimal adjust instruction.  Check datasheet for more details!
-0666 F550       437           mov min, a
-0668 12060B     438           lcall Reset_timer
-066B            439                Continue1:
-066B 22         440           ret
-066C            441       min_counter:
-066C E550       442                    mov a,min
-066E B4600B     443                    cjne a, #0x60, Continue2
-0671 C2CA       444                    clr TR2                 ; Stop timer 2
-0673 E4         445                    clr a                   
-0674 F54A       446                    mov Count1ms+0, a
-0676 F54B       447                    mov Count1ms+1, a       ; Now clear the BCD counter
-0678 F550       448                    mov min, a              ; Reset min
-067A D2CA       449           setb TR2                ; Start timer 2
-067C            450   
-067C            451                    Continue2:
-067C 22         452           ret
-067D            453   home_page:
-067D            454       ;--------Timer----------;
-067D 300109     455       jnb half_seconds_flag, Temp_sensor
-0680 12065C     456       lcall sec_counter
-0683 12066C     457       lcall min_counter
-0686 120617     458       lcall Display_time
-0689            459       ;-----------------------;
-0689            460               
-0689            461       ;-----TEMP SENSOR-------;
-0689            462       Temp_sensor:
-0689 1205EB     463       lcall config_adc
-068C 12053B     464       lcall Display_temp
-068F 120419     465       lcall  WaitHalfSec 
-0692            466       ;-----------------------;
-0692 22         467       ret
-0693            468   
-0693            469   setup_reflow_page:
-0693 20A511     470            jb set_BUTTON, continue9
-0696 C002       470            push AR2
-0698 7A0A       470            mov R2, #10
-069A 1202A9     470            lcall ?Wait_Milli_Seconds
-069D D002       470            pop AR2
-069F 20A505     470            jb set_BUTTON, continue9
-06A2 30A5FD     470            jnb set_BUTTON, $
-06A5            470   
-06A5 B207       471       cpl tt_reflow_flag
-06A7            472       continue9:
-06A7            473   
-06A7 200706     474       jb tt_reflow_flag, jump1
-06AA            475       ;jnb tt_reflow_flag, jump1
-06AA 12078C     476       lcall INC_DEC_Reflow_time
-06AD 0206B3     477       ljmp display_reflow_page
-06B0            478       jump1:
-06B0 1207D4     479       lcall INC_DEC_Reflow_temp
-06B3            480   
-06B3            481   
-06B3            482       display_reflow_page:
-06B3 C0E0       483            push acc
-06B5 7405       483            mov a, #5
-06B7 14         483            dec a
-06B8 120331     483            lcall ?Set_Cursor_1 ; Select column and row
-06BB D0E0       483            pop acc
-06BD C000       484            push ar0
-06BF A84C       484            mov r0, reflow_temp+0
-06C1 120336     484            lcall ?Display_BCD
-06C4 D000       484            pop ar0
-06C6 C0E0       485            push acc
-06C8 7407       485            mov a, #7
-06CA 14         485            dec a
-06CB 120331     485            lcall ?Set_Cursor_1 ; Select column and row
-06CE D0E0       485            pop acc
-06D0 C000       486            push ar0
-06D2 A84D       486            mov r0, reflow_temp+1
-06D4 120336     486            lcall ?Display_BCD
-06D7 D000       486            pop ar0
-06D9            487          
-06D9            488       
-06D9 C0E0       489            push acc
-06DB 7401       489            mov a, #1
-06DD 14         489            dec a
-06DE 120331     489            lcall ?Set_Cursor_1 ; Select column and row
-06E1 D0E0       489            pop acc
-06E3 C083       490            push dph
-06E5 C082       490            push dpl
-06E7 C0E0       490            push acc
-06E9 900516     490            mov dptr, #reflow_setup
-06EC 120324     490            lcall ?Send_Constant_String
-06EF D0E0       490            pop acc
-06F1 D082       490            pop dpl
-06F3 D083       490            pop dph
-06F5 C0E0       491            push acc
-06F7 7409       491            mov a, #9
-06F9 14         491            dec a
-06FA 120331     491            lcall ?Set_Cursor_1 ; Select column and row
-06FD D0E0       491            pop acc
-06FF C083       492            push dph
-0701 C082       492            push dpl
-0703 C0E0       492            push acc
-0705 90051B     492            mov dptr, #reflow_setup4
-0708 120324     492            lcall ?Send_Constant_String
-070B D0E0       492            pop acc
-070D D082       492            pop dpl
-070F D083       492            pop dph
-0711            493   
-0711 C0E0       494            push acc
-0713 7401       494            mov a, #1
-0715 14         494            dec a
-0716 12032F     494            lcall ?Set_Cursor_2 ; Select column and row
-0719 D0E0       494            pop acc
-071B C083       495            push dph
-071D C082       495            push dpl
-071F C0E0       495            push acc
-0721 900524     495            mov dptr, #reflow_setup2
-0724 120324     495            lcall ?Send_Constant_String
-0727 D0E0       495            pop acc
-0729 D082       495            pop dpl
-072B D083       495            pop dph
-072D C0E0       496            push acc
-072F 7408       496            mov a, #8
-0731 14         496            dec a
-0732 12032F     496            lcall ?Set_Cursor_2 ; Select column and row
-0735 D0E0       496            pop acc
-0737 C083       497            push dph
-0739 C082       497            push dpl
-073B C0E0       497            push acc
-073D 900503     497            mov dptr, #dots
-0740 120324     497            lcall ?Send_Constant_String
-0743 D0E0       497            pop acc
-0745 D082       497            pop dpl
-0747 D083       497            pop dph
-0749 C0E0       498            push acc
-074B 740C       498            mov a, #12
-074D 14         498            dec a
-074E 12032F     498            lcall ?Set_Cursor_2 ; Select column and row
-0751 D0E0       498            pop acc
-0753 C083       499            push dph
-0755 C082       499            push dpl
-0757 C0E0       499            push acc
-0759 900529     499            mov dptr, #reflow_setup3
-075C 120324     499            lcall ?Send_Constant_String
-075F D0E0       499            pop acc
-0761 D082       499            pop dpl
-0763 D083       499            pop dph
-0765 C0E0       500            push acc
-0767 7409       500            mov a, #9
-0769 14         500            dec a
-076A 12032F     500            lcall ?Set_Cursor_2 ; Select column and row
-076D D0E0       500            pop acc
-076F C000       501            push ar0
-0771 A852       501            mov r0, reflow_sec
-0773 120336     501            lcall ?Display_BCD
-0776 D000       501            pop ar0
-0778 C0E0       502            push acc
-077A 7406       502            mov a, #6
-077C 14         502            dec a
-077D 12032F     502            lcall ?Set_Cursor_2 ; Select column and row
-0780 D0E0       502            pop acc
-0782 C000       503            push ar0
-0784 A853       503            mov r0, reflow_min
-0786 120336     503            lcall ?Display_BCD
-0789 D000       503            pop ar0
-078B            504   
-078B 22         505       ret
-078C            506   INC_DEC_Reflow_time:
-078C            507   
-078C 20A424     508            jb SETUP_SOAK_Button, check_decrement
-078F C002       508            push AR2
-0791 7A0A       508            mov R2, #10
-0793 1202A9     508            lcall ?Wait_Milli_Seconds
-0796 D002       508            pop AR2
-0798 20A418     508            jb SETUP_SOAK_Button, check_decrement
-079B 30A4FD     508            jnb SETUP_SOAK_Button, $
-079E            508    ; setup soak is also used to increment 
-079E            509   
-079E E552       510       mov a, reflow_sec
-07A0 B4590B     511       cjne a, #0x59, add_reflow_sec
-07A3 E553       512       mov a, reflow_min
-07A5 2401       513       add a, #0x01
-07A7 D4         514       da a
-07A8 F553       515       mov reflow_min, a
-07AA E4         516       clr a 
-07AB 0207B1     517       ljmp Continue5
-07AE            518       add_reflow_sec:
-07AE 2401       519       add a, #0x01
-07B0 D4         520       da a ; Decimal adjust instruction.  Check datasheet for more details!
-07B1            521       Continue5:
-07B1 F552       522       mov reflow_sec, a
-07B3            523   
-07B3            524       check_decrement:
-07B3 20A61D     525            jb Button_min, continue8
-07B6 C002       525            push AR2
-07B8 7A0A       525            mov R2, #10
-07BA 1202A9     525            lcall ?Wait_Milli_Seconds
-07BD D002       525            pop AR2
-07BF 20A611     525            jb Button_min, continue8
-07C2 30A6FD     525            jnb Button_min, $
-07C5            525   
-07C5 E552       526       mov a, reflow_sec
-07C7 B40004     527       cjne a, #0x00, sub_reflow_sec
-07CA E4         528       clr a 
-07CB 0207D1     529       ljmp Continue6
-07CE            530       sub_reflow_sec:
-07CE 2499       531       add a, #0x99 ; add 99 reduces 1
-07D0 D4         532       da a ; Decimal adjust instruction.  Check datasheet for more details!
-07D1            533       Continue6:
-07D1 F552       534       mov reflow_sec, a
-07D3            535       continue8:
-07D3 22         536       ret
-07D4            537   INC_DEC_Reflow_temp:
-07D4            538       ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
-07D4            539   
-07D4 20A464     540           jb SETUP_SOAK_Button, check_decrement2  
-07D7 C002       541            push AR2
-07D9 7A32       541            mov R2, #50
-07DB 1202A9     541            lcall ?Wait_Milli_Seconds
-07DE D002       541            pop AR2         
-07E0 20A458     542           jb SETUP_SOAK_Button, check_decrement2  
-07E3            543           loop_hold_inc:
-07E3            544   
-07E3 30A40F     545                    jnb SETUP_SOAK_Button, jump2
-07E6 C002       546            push AR2
-07E8 7A64       546            mov R2, #100
-07EA 1202A9     546            lcall ?Wait_Milli_Seconds
-07ED D002       546            pop AR2
-07EF 30A403     547           jnb SETUP_SOAK_Button, jump2
-07F2 02083B     548           ljmp hold_done
-07F5            549           jump2:
-07F5 C0E0       550            push acc
-07F7 7405       550            mov a, #5
-07F9 14         550            dec a
-07FA 120331     550            lcall ?Set_Cursor_1 ; Select column and row
-07FD D0E0       550            pop acc
-07FF C000       551            push ar0
-0801 A84C       551            mov r0, reflow_temp+0
-0803 120336     551            lcall ?Display_BCD
-0806 D000       551            pop ar0
-0808 C0E0       552            push acc
-080A 7407       552            mov a, #7
-080C 14         552            dec a
-080D 120331     552            lcall ?Set_Cursor_1 ; Select column and row
-0810 D0E0       552            pop acc
-0812 C000       553            push ar0
-0814 A84D       553            mov r0, reflow_temp+1
-0816 120336     553            lcall ?Display_BCD
-0819 D000       553            pop ar0
-081B C002       554            push AR2
-081D 7A64       554            mov R2, #100
-081F 1202A9     554            lcall ?Wait_Milli_Seconds
-0822 D002       554            pop AR2         
-0824 E54D       555           mov a, reflow_temp+1
-0826 2401       556           add a, #0x01
-0828 D4         557           da a ; Decimal adjust instruction.  Check datasheet for more details!
-0829 F54D       558           mov reflow_temp+1, a
-082B E54D       559           mov a, reflow_temp+1
-082D 7009       560           jnz INC_reflow_temp_done2
-082F E54C       561           mov a, reflow_temp+0
-0831 2401       562           add a, #0x01
-0833 D4         563           da a ; Decimal adjust instruction.  Check datasheet for more details!
-0834 F54C       564           mov reflow_temp+0, a
-0836 E54D       565           mov a, reflow_temp+1
-0838            566           INC_reflow_temp_done2:
-0838            567           
-0838 0207E3     568           ljmp loop_hold_inc
-083B            569       hold_done:
-083B            570       
-083B            571   
-083B            572   
-083B            573       check_decrement2:
-083B 20A664     574           jb Button_min, DEC_reflow_temp_done2  
-083E C002       575            push AR2
-0840 7A32       575            mov R2, #50
-0842 1202A9     575            lcall ?Wait_Milli_Seconds
-0845 D002       575            pop AR2         
-0847 20A658     576           jb Button_min, DEC_reflow_temp_done2  
-084A            577           loop_hold_dec:
-084A            578   
-084A 30A60F     579                    jnb Button_min, jump3
-084D C002       580            push AR2
-084F 7A64       580            mov R2, #100
-0851 1202A9     580            lcall ?Wait_Milli_Seconds
-0854 D002       580            pop AR2
-0856 30A603     581           jnb Button_min, jump3
-0859 0208A2     582           ljmp DEC_reflow_temp_done2
-085C            583           jump3:
-085C C0E0       584            push acc
-085E 7405       584            mov a, #5
-0860 14         584            dec a
-0861 120331     584            lcall ?Set_Cursor_1 ; Select column and row
-0864 D0E0       584            pop acc
-0866 C000       585            push ar0
-0868 A84C       585            mov r0, reflow_temp+0
-086A 120336     585            lcall ?Display_BCD
-086D D000       585            pop ar0
-086F C0E0       586            push acc
-0871 7407       586            mov a, #7
-0873 14         586            dec a
-0874 120331     586            lcall ?Set_Cursor_1 ; Select column and row
-0877 D0E0       586            pop acc
-0879 C000       587            push ar0
-087B A84D       587            mov r0, reflow_temp+1
-087D 120336     587            lcall ?Display_BCD
-0880 D000       587            pop ar0
-0882 C002       588            push AR2
-0884 7A64       588            mov R2, #100
-0886 1202A9     588            lcall ?Wait_Milli_Seconds
-0889 D002       588            pop AR2         
-088B E54D       589           mov a, reflow_temp+1
-088D 2499       590           add a, #0x99
-088F D4         591           da a ; Decimal adjust instruction.  Check datasheet for more details!
-0890 F54D       592           mov reflow_temp+1, a
-0892 E54D       593           mov a, reflow_temp+1
-0894 7009       594           jnz INC_reflow_temp_done
-0896 E54C       595           mov a, reflow_temp+0
-0898 2499       596           add a, #0x99
-089A D4         597           da a ; Decimal adjust instruction.  Check datasheet for more details!
-089B F54C       598           mov reflow_temp+0, a
-089D E54D       599           mov a, reflow_temp+1
-089F            600           INC_reflow_temp_done:
-089F            601           
-089F 02084A     602           ljmp loop_hold_dec
-08A2            603   
-08A2            604       DEC_reflow_temp_done2:
-08A2            605      
-08A2            606   
-08A2 22         607       ret
-08A3            608   second_page:
-08A3 C0E0       609            push acc
-08A5 7401       609            mov a, #1
-08A7 14         609            dec a
-08A8 120331     609            lcall ?Set_Cursor_1 ; Select column and row
-08AB D0E0       609            pop acc
-08AD C083       610            push dph
-08AF C082       610            push dpl
-08B1 C0E0       610            push acc
-08B3 900505     610            mov dptr, #soak_reflw
-08B6 120324     610            lcall ?Send_Constant_String
-08B9 D0E0       610            pop acc
-08BB D082       610            pop dpl
-08BD D083       610            pop dph
-08BF C0E0       611            push acc
-08C1 7401       611            mov a, #1
-08C3 14         611            dec a
-08C4 12032F     611            lcall ?Set_Cursor_2 ; Select column and row
-08C7 D0E0       611            pop acc
-08C9 C083       612            push dph
-08CB C082       612            push dpl
-08CD C0E0       612            push acc
-08CF 9004BF     612            mov dptr, #nothing
-08D2 120324     612            lcall ?Send_Constant_String
-08D5 D0E0       612            pop acc
-08D7 D082       612            pop dpl
-08D9 D083       612            pop dph
-08DB 22         613       ret
-08DC            614   ;---------------------------------;
-08DC            615   ; Main program. Includes hardware ;
-08DC            616   ; initialization and 'forever'    ;
-08DC            617   ; loop.                           ;
-08DC            618   ;---------------------------------;
-08DC            619   MainProgram:
-08DC 75817F     620           mov SP, #7FH ; Set the stack pointer to the begining of idata
-08DF            621           ; Initialization_LCD
-08DF 1202F8     622           lcall LCD_4BIT
-08E2            623           ; Initialization_Termometer
-08E2 1203FB     624           lcall INIT_SPI
-08E5            625           ; Initialization_timer
-08E5            626       
-08E5 120362     627           lcall Timer0_Init
-08E8            628           ;lcall Timer1_Init
-08E8 12037E     629           lcall Timer2_Init
-08EB D2AF       630           setb EA   ; Enable Global interrupts
-08ED D201       631           setb half_seconds_flag
-08EF 754F00     632                mov BCD_counter, #0x00
-08F2 755200     633           mov reflow_sec, #0x00
-08F5 755300     634           mov reflow_min, #0x00
-08F8 755000     635           mov min, #0x00
-08FB 754600     636           mov state_lcd, #0
-08FE C206       637           clr TR2_flag
-0900 754C01     638           mov reflow_temp+0, #0x01
-0903 754D50     639           mov reflow_temp+1, #0x50
-0906 C207       640           clr tt_reflow_flag
-0908            641   
-0908            642           
-0908            643   
-0908            644   
-0908            645       Forever: 
-0908            646        
-0908 E546       647           mov a, state_lcd
-090A            648   
-090A            649   ;        Check_start_Button:
-090A            650   ;        PushButton(start,Check_stop_button)
-090A            651   ;        setb TR2
-090A            652   ;        ljmp forever
-090A            653   ;        Check_stop_button:
-090A            654   ;        PushButton(stop_Button, Continue8 )
-090A            655   ;        clr TR2
-090A            656   ;        ljmp Forever 
-090A            657   ;     ;   lcall Reset_timer
-090A            658   ;        Continue8:
-090A            659   
-090A            660           ;----------------STATE 0------------------;
-090A            661            home_state:
-090A B4001E     662               cjne a, #0, soak_reflow_state
-090D 20A515     663            jb set_BUTTON, done_home2
-0910 C002       663            push AR2
-0912 7A0A       663            mov R2, #10
-0914 1202A9     663            lcall ?Wait_Milli_Seconds
-0917 D002       663            pop AR2
-0919 20A509     663            jb set_BUTTON, done_home2
-091C 30A5FD     663            jnb set_BUTTON, $
-091F            663    
-091F            664               ;setb set_flag  
-091F 754601     665               mov state_lcd, #1
-0922 020928     666               ljmp done_home
-0925            667               done_home2:
-0925            668               ;clr set_flag
-0925 12067D     669               lcall home_page
-0928            670               done_home:
-0928 020908     671               ljmp Forever           
-092B            672           ;------------------------------------------;
-092B            673           
-092B            674           ;----------------STATE 1-------------------;
-092B            675           soak_reflow_state:
-092B B4014B     676               cjne a, #1, setup_soak
-092E 1208A3     677               lcall second_page
-0931            678             ;  Wait_Milli_Seconds(#50)
-0931 12065C     679               lcall sec_counter ; prevent the timer to go over 60
-0934 12066C     680               lcall min_counter
-0937 20A712     681            jb HOME_BUTTON, next_pushb
-093A C002       681            push AR2
-093C 7A0A       681            mov R2, #10
-093E 1202A9     681            lcall ?Wait_Milli_Seconds
-0941 D002       681            pop AR2
-0943 20A706     681            jb HOME_BUTTON, next_pushb
-0946 30A7FD     681            jnb HOME_BUTTON, $
-0949            681    ; check if home button is pressed 
-0949 754600     682               mov state_lcd, #0
-094C            683               next_pushb:
-094C 20A412     684            jb SETUP_SOAK_Button, next_pushb2
-094F C002       684            push AR2
-0951 7A0A       684            mov R2, #10
-0953 1202A9     684            lcall ?Wait_Milli_Seconds
-0956 D002       684            pop AR2
-0958 20A406     684            jb SETUP_SOAK_Button, next_pushb2
-095B 30A4FD     684            jnb SETUP_SOAK_Button, $
-095E            684    ; check if the the button to setup soak is pressed
-095E 754602     685               mov state_lcd, #2
-0961            686               next_pushb2:
-0961 20A612     687            jb Button_min, done_soak
-0964 C002       687            push AR2
-0966 7A0A       687            mov R2, #10
-0968 1202A9     687            lcall ?Wait_Milli_Seconds
-096B D002       687            pop AR2
-096D 20A606     687            jb Button_min, done_soak
-0970 30A6FD     687            jnb Button_min, $
-0973            687    ; check if the buttion to setup the reflow was pressed 
-0973 754603     688               mov state_lcd, #3
-0976            689               done_soak:
-0976 020908     690              ljmp Forever
-0979            691           ;------------------------------------------;
-0979            692   
-0979            693           ;-----------------STATE 2------------------;
-0979            694           setup_soak:
-0979 B40221     695               cjne a, #2, setup_reflow
-097C 120693     696               lcall setup_reflow_page
-097F            697             ;  Wait_Milli_Seconds(#50)
-097F 12065C     698               lcall sec_counter ; prevent the timer to go over 60
-0982 12066C     699               lcall min_counter
-0985 20A712     700            jb HOME_BUTTON, done_setup_soak
-0988 C002       700            push AR2
-098A 7A0A       700            mov R2, #10
-098C 1202A9     700            lcall ?Wait_Milli_Seconds
-098F D002       700            pop AR2
-0991 20A706     700            jb HOME_BUTTON, done_setup_soak
-0994 30A7FD     700            jnb HOME_BUTTON, $
-0997            700    ; check if home button is pressed 
-0997 754600     701               mov state_lcd, #0
-099A            702               done_setup_soak:
-099A 020908     703               ljmp Forever
-099D            704           ;------------------------------------------;
-099D            705   
-099D            706           ;----------------STATE 3-------------------;
-099D            707           setup_reflow:
-099D B40303     708               cjne a, #3, FDP
-09A0 0209A6     709               ljmp FDP2
-09A3            710               FDP:
-09A3 02090A     711               ljmp home_state
-09A6            712               FDP2:
-09A6 C0E0       713            push acc
-09A8 7401       713            mov a, #1
-09AA 14         713            dec a
-09AB 120331     713            lcall ?Set_Cursor_1 ; Select column and row
-09AE D0E0       713            pop acc
-09B0 C083       714            push dph
-09B2 C082       714            push dpl
-09B4 C0E0       714            push acc
-09B6 9004D0     714            mov dptr, #test2
-09B9 120324     714            lcall ?Send_Constant_String
-09BC D0E0       714            pop acc
-09BE D082       714            pop dpl
-09C0 D083       714            pop dph
-09C2 C0E0       715            push acc
-09C4 7401       715            mov a, #1
-09C6 14         715            dec a
-09C7 12032F     715            lcall ?Set_Cursor_2 ; Select column and row
-09CA D0E0       715            pop acc
-09CC C083       716            push dph
-09CE C082       716            push dpl
-09D0 C0E0       716            push acc
-09D2 9004D0     716            mov dptr, #test2
-09D5 120324     716            lcall ?Send_Constant_String
-09D8 D0E0       716            pop acc
-09DA D082       716            pop dpl
-09DC D083       716            pop dph
-09DE 12065C     717               lcall sec_counter ; prevent the timer to go over 60
-09E1 12066C     718               lcall min_counter
-09E4 20A712     719            jb HOME_BUTTON, done_setup_reflow
-09E7 C002       719            push AR2
-09E9 7A0A       719            mov R2, #10
-09EB 1202A9     719            lcall ?Wait_Milli_Seconds
-09EE D002       719            pop AR2
-09F0 20A706     719            jb HOME_BUTTON, done_setup_reflow
-09F3 30A7FD     719            jnb HOME_BUTTON, $
-09F6            719    ; check if home button is pressed 
-09F6 754600     720               mov state_lcd, #0
-09F9            721               done_setup_reflow:
-09F9 020908     722               ljmp Forever
-09FC            723           ;------------------------------------------;
-09FC            724   END
+052E            363   
+052E 54656D70   364       soak_setup0:      db 'Temp',0
+     00
+0533 202A534F   365       soak_setup1:      db ' *SOAK*',0
+     414B2A00
+053B 54696D65   366       soak_setup2:      db 'Time',0
+     00
+0540 484F4D45   367       soak_setup3:      db 'HOME',0
+     00
+0545            368   
+0545            369   
+0545            370   convert:
+0545 853034     371       mov x+0, Result
+0548 853135     372            mov x+1, Result+1 
+054B 753600     373            mov x+2, #0
+054E 753700     374            mov x+3, #0
+0551 22         375       ret
+0552            376   Display_temp:
+0552 75389A     377            mov y+0, #low (410 % 0x10000) 
+0555 753901     377            mov y+1, #high(410 % 0x10000) 
+0558 753A00     377            mov y+2, #low (410 / 0x10000) 
+055B 753B00     377            mov y+3, #high(410 / 0x10000) 
+055E 1201A8     378       lcall mul32
+0561 7538FF     379            mov y+0, #low (1023 % 0x10000) 
+0564 753903     379            mov y+1, #high(1023 % 0x10000) 
+0567 753A00     379            mov y+2, #low (1023 / 0x10000) 
+056A 753B00     379            mov y+3, #high(1023 / 0x10000) 
+056D 120235     380       lcall div32
+0570 753811     381            mov y+0, #low (273 % 0x10000) 
+0573 753901     381            mov y+1, #high(273 % 0x10000) 
+0576 753A00     381            mov y+2, #low (273 / 0x10000) 
+0579 753B00     381            mov y+3, #high(273 / 0x10000) 
+057C 120114     382       lcall sub32
+057F 12002E     383       lcall hex2bcd
+0582 1203C8     384       lcall InitSerialPort
+0585 C0E0       385            push acc
+0587 7401       385            mov a, #1
+0589 14         385            dec a
+058A 120331     385            lcall ?Set_Cursor_1 ; Select column and row
+058D D0E0       385            pop acc
+058F C083       386            push dph
+0591 C082       386            push dpl
+0593 C0E0       386            push acc
+0595 9004AE     386            mov dptr, #Temp0
+0598 120324     386            lcall ?Send_Constant_String
+059B D0E0       386            pop acc
+059D D082       386            pop dpl
+059F D083       386            pop dph
+05A1 1203F0     387       lcall SendString
+05A4 C0E0       388            push acc
+05A6 7405       388            mov a, #5
+05A8 14         388            dec a
+05A9 120331     388            lcall ?Set_Cursor_1 ; Select column and row
+05AC D0E0       388            pop acc    
+05AE C000       389            push ar0
+05B0 A83D       389            mov r0, bcd+1
+05B2 12034C     389            lcall ?Send_BCD
+05B5 D000       389            pop ar0 ; send fisrt 2 digits to putty
+05B7 C000       390            push ar0
+05B9 A83D       390            mov r0, bcd+1
+05BB 120336     390            lcall ?Display_BCD
+05BE D000       390            pop ar0; send fisrt 2 digits to lcd
+05C0 C0E0       391            push acc
+05C2 7407       391            mov a, #7
+05C4 14         391            dec a
+05C5 120331     391            lcall ?Set_Cursor_1 ; Select column and row
+05C8 D0E0       391            pop acc 
+05CA C000       392            push ar0
+05CC A83C       392            mov r0, bcd
+05CE 12034C     392            lcall ?Send_BCD
+05D1 D000       392            pop ar0 ; send last 2 digits to putty
+05D3 C000       393            push ar0
+05D5 A83C       393            mov r0, bcd+0
+05D7 120336     393            lcall ?Display_BCD
+05DA D000       393            pop ar0 ; send last 2 digits to lcd
+05DC C0E0       394            push acc
+05DE 7405       394            mov a, #5
+05E0 14         394            dec a
+05E1 120331     394            lcall ?Set_Cursor_1 ; Select column and row
+05E4 D0E0       394            pop acc
+05E6 C083       395            push dph
+05E8 C082       395            push dpl
+05EA C0E0       395            push acc
+05EC 900503     395            mov dptr, #dots
+05EF 120324     395            lcall ?Send_Constant_String
+05F2 D0E0       395            pop acc
+05F4 D082       395            pop dpl
+05F6 D083       395            pop dph
+05F8 1203F0     396       lcall SendString
+05FB 9004A2     397       mov DPTR, #Newline
+05FE 1203F0     398       lcall SendString
+0601 22         399       ret
+0602            400   config_adc:
+0602 C2A0       401           clr CE_ADC 
+0604 7801       402           mov R0, #00000001B; Start bit:1 
+0606 120400     403           lcall DO_SPI_G
+0609            404   
+0609 7880       405           mov R0, #10000000B; Single ended, read channel 0 
+060B 120400     406           lcall DO_SPI_G 
+060E E9         407           mov a, R1          ; R1 contains bits 8 and 9 
+060F 5403       408           anl a, #00000011B  ; We need only the two least significant bits 
+0611 F531       409           mov Result+1, a    ; Save result high.
+0613            410   
+0613 7855       411           mov R0, #55H; It doesn't matter what we transmit... 
+0615 120400     412           lcall DO_SPI_G 
+0618 8930       413           mov Result, R1     ; R1 contains bits 0 to 7.  Save result low. 
+061A D2A0       414           setb CE_ADC 
+061C 120545     415           lcall convert  
+061F E53C       416           mov a, bcd ; move temp to accumulator 
+0621 22         417           ret
+0622            418   Reset_timer:
+0622            419   
+0622 C2CA       420       clr TR2                 ; Stop timer 2
+0624 E4         421       clr a
+0625 F54A       422            mov Count1ms+0, a
+0627 F54B       423            mov Count1ms+1, a
+0629            424            ; Now clear the BCD counter and min
+0629 F551       425            mov BCD_counter, a
+062B D2CA       426            setb TR2                ; Start timer 2
+062D            427   
+062D 22         428       ret
+062E            429   Display_time:
+062E C0E0       430            push acc
+0630 7401       430            mov a, #1
+0632 14         430            dec a
+0633 12032F     430            lcall ?Set_Cursor_2 ; Select column and row
+0636 D0E0       430            pop acc
+0638 C083       431            push dph
+063A C082       431            push dpl
+063C C0E0       431            push acc
+063E 9004F2     431            mov dptr, #Time
+0641 120324     431            lcall ?Send_Constant_String
+0644 D0E0       431            pop acc
+0646 D082       431            pop dpl
+0648 D083       431            pop dph
+064A C201       432       clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
+064C C0E0       433            push acc
+064E 7409       433            mov a, #9
+0650 14         433            dec a
+0651 12032F     433            lcall ?Set_Cursor_2 ; Select column and row
+0654 D0E0       433            pop acc     ; the place in the LCD where we want the BCD counter value
+0656 C000       434            push ar0
+0658 A851       434            mov r0, BCD_counter
+065A 120336     434            lcall ?Display_BCD
+065D D000       434            pop ar0 ; This macro is also in 'LCD_4bit.inc'
+065F C0E0       435            push acc
+0661 7406       435            mov a, #6
+0663 14         435            dec a
+0664 12032F     435            lcall ?Set_Cursor_2 ; Select column and row
+0667 D0E0       435            pop acc     ; the place in the LCD where we want the BCD counter value
+0669 C000       436            push ar0
+066B A852       436            mov r0, min
+066D 120336     436            lcall ?Display_BCD
+0670 D000       436            pop ar0 ; This macro is also in 'LCD_4bit.inc'
+0672            437   
+0672 22         438       ret
+0673            439   ;Timer couter 
+0673            440       sec_counter: 
+0673 E551       441           mov a,BCD_counter
+0675 B4600A     442           cjne a, #0x60, Continue1 ; check if the couter reached 60s
+0678 E552       443           mov a, min
+067A 2401       444           add a, #0x01 ; add one to the minutes
+067C D4         445           da a ; Decimal adjust instruction.  Check datasheet for more details!
+067D F552       446           mov min, a
+067F 120622     447           lcall Reset_timer
+0682            448                Continue1:
+0682 22         449           ret
+0683            450       min_counter:
+0683 E552       451                    mov a,min
+0685 B4600B     452                    cjne a, #0x60, Continue2
+0688 C2CA       453                    clr TR2                 ; Stop timer 2
+068A E4         454                    clr a                   
+068B F54A       455                    mov Count1ms+0, a
+068D F54B       456                    mov Count1ms+1, a       ; Now clear the BCD counter
+068F F552       457                    mov min, a              ; Reset min
+0691 D2CA       458           setb TR2                ; Start timer 2
+0693            459   
+0693            460                    Continue2:
+0693 22         461           ret
+0694            462   home_page:
+0694            463       ;--------Timer----------;
+0694 300109     464       jnb half_seconds_flag, Temp_sensor
+0697 120673     465       lcall sec_counter
+069A 120683     466       lcall min_counter
+069D 12062E     467       lcall Display_time
+06A0            468       ;-----------------------;
+06A0            469               
+06A0            470       ;-----TEMP SENSOR-------;
+06A0            471       Temp_sensor:
+06A0 120602     472       lcall config_adc
+06A3 120552     473       lcall Display_temp
+06A6 120419     474       lcall  WaitHalfSec 
+06A9            475       ;-----------------------;
+06A9 22         476       ret
+06AA            477   
+06AA            478   setup_reflow_page:
+06AA 20A511     479            jb set_BUTTON, continue9
+06AD C002       479            push AR2
+06AF 7A0A       479            mov R2, #10
+06B1 1202A9     479            lcall ?Wait_Milli_Seconds
+06B4 D002       479            pop AR2
+06B6 20A505     479            jb set_BUTTON, continue9
+06B9 30A5FD     479            jnb set_BUTTON, $
+06BC            479   
+06BC B207       480       cpl tt_reflow_flag
+06BE            481       continue9:
+06BE            482   
+06BE 200706     483       jb tt_reflow_flag, jump1
+06C1            484       ;jnb tt_reflow_flag, jump1
+06C1 1207A3     485       lcall INC_DEC_Reflow_time
+06C4 0206CA     486       ljmp display_reflow_page
+06C7            487       jump1:
+06C7 1207EB     488       lcall INC_DEC_Reflow_temp
+06CA            489   
+06CA            490   
+06CA            491       display_reflow_page:
+06CA C0E0       492            push acc
+06CC 7405       492            mov a, #5
+06CE 14         492            dec a
+06CF 120331     492            lcall ?Set_Cursor_1 ; Select column and row
+06D2 D0E0       492            pop acc
+06D4 C000       493            push ar0
+06D6 A84C       493            mov r0, reflow_temp+0
+06D8 120336     493            lcall ?Display_BCD
+06DB D000       493            pop ar0
+06DD C0E0       494            push acc
+06DF 7407       494            mov a, #7
+06E1 14         494            dec a
+06E2 120331     494            lcall ?Set_Cursor_1 ; Select column and row
+06E5 D0E0       494            pop acc
+06E7 C000       495            push ar0
+06E9 A84D       495            mov r0, reflow_temp+1
+06EB 120336     495            lcall ?Display_BCD
+06EE D000       495            pop ar0
+06F0            496          
+06F0            497       
+06F0 C0E0       498            push acc
+06F2 7401       498            mov a, #1
+06F4 14         498            dec a
+06F5 120331     498            lcall ?Set_Cursor_1 ; Select column and row
+06F8 D0E0       498            pop acc
+06FA C083       499            push dph
+06FC C082       499            push dpl
+06FE C0E0       499            push acc
+0700 900516     499            mov dptr, #reflow_setup
+0703 120324     499            lcall ?Send_Constant_String
+0706 D0E0       499            pop acc
+0708 D082       499            pop dpl
+070A D083       499            pop dph
+070C C0E0       500            push acc
+070E 7409       500            mov a, #9
+0710 14         500            dec a
+0711 120331     500            lcall ?Set_Cursor_1 ; Select column and row
+0714 D0E0       500            pop acc
+0716 C083       501            push dph
+0718 C082       501            push dpl
+071A C0E0       501            push acc
+071C 90051B     501            mov dptr, #reflow_setup4
+071F 120324     501            lcall ?Send_Constant_String
+0722 D0E0       501            pop acc
+0724 D082       501            pop dpl
+0726 D083       501            pop dph
+0728            502   
+0728 C0E0       503            push acc
+072A 7401       503            mov a, #1
+072C 14         503            dec a
+072D 12032F     503            lcall ?Set_Cursor_2 ; Select column and row
+0730 D0E0       503            pop acc
+0732 C083       504            push dph
+0734 C082       504            push dpl
+0736 C0E0       504            push acc
+0738 900524     504            mov dptr, #reflow_setup2
+073B 120324     504            lcall ?Send_Constant_String
+073E D0E0       504            pop acc
+0740 D082       504            pop dpl
+0742 D083       504            pop dph
+0744 C0E0       505            push acc
+0746 7408       505            mov a, #8
+0748 14         505            dec a
+0749 12032F     505            lcall ?Set_Cursor_2 ; Select column and row
+074C D0E0       505            pop acc
+074E C083       506            push dph
+0750 C082       506            push dpl
+0752 C0E0       506            push acc
+0754 900503     506            mov dptr, #dots
+0757 120324     506            lcall ?Send_Constant_String
+075A D0E0       506            pop acc
+075C D082       506            pop dpl
+075E D083       506            pop dph
+0760 C0E0       507            push acc
+0762 740C       507            mov a, #12
+0764 14         507            dec a
+0765 12032F     507            lcall ?Set_Cursor_2 ; Select column and row
+0768 D0E0       507            pop acc
+076A C083       508            push dph
+076C C082       508            push dpl
+076E C0E0       508            push acc
+0770 900529     508            mov dptr, #reflow_setup3
+0773 120324     508            lcall ?Send_Constant_String
+0776 D0E0       508            pop acc
+0778 D082       508            pop dpl
+077A D083       508            pop dph
+077C C0E0       509            push acc
+077E 7409       509            mov a, #9
+0780 14         509            dec a
+0781 12032F     509            lcall ?Set_Cursor_2 ; Select column and row
+0784 D0E0       509            pop acc
+0786 C000       510            push ar0
+0788 A854       510            mov r0, reflow_sec
+078A 120336     510            lcall ?Display_BCD
+078D D000       510            pop ar0
+078F C0E0       511            push acc
+0791 7406       511            mov a, #6
+0793 14         511            dec a
+0794 12032F     511            lcall ?Set_Cursor_2 ; Select column and row
+0797 D0E0       511            pop acc
+0799 C000       512            push ar0
+079B A855       512            mov r0, reflow_min
+079D 120336     512            lcall ?Display_BCD
+07A0 D000       512            pop ar0
+07A2            513   
+07A2 22         514       ret
+07A3            515       INC_DEC_Reflow_time:
+07A3            516   
+07A3 20A424     517            jb SETUP_SOAK_Button, check_decrement
+07A6 C002       517            push AR2
+07A8 7A0A       517            mov R2, #10
+07AA 1202A9     517            lcall ?Wait_Milli_Seconds
+07AD D002       517            pop AR2
+07AF 20A418     517            jb SETUP_SOAK_Button, check_decrement
+07B2 30A4FD     517            jnb SETUP_SOAK_Button, $
+07B5            517    ; setup soak is also used to increment 
+07B5            518   
+07B5 E554       519           mov a, reflow_sec
+07B7 B4590B     520           cjne a, #0x59, add_reflow_sec
+07BA E555       521           mov a, reflow_min
+07BC 2401       522           add a, #0x01
+07BE D4         523           da a
+07BF F555       524           mov reflow_min, a
+07C1 E4         525           clr a 
+07C2 0207C8     526           ljmp Continue5
+07C5            527           add_reflow_sec:
+07C5 2401       528           add a, #0x01
+07C7 D4         529           da a ; Decimal adjust instruction.  Check datasheet for more details!
+07C8            530           Continue5:
+07C8 F554       531           mov reflow_sec, a
+07CA            532   
+07CA            533           check_decrement:
+07CA 20A61D     534            jb Button_min, continue8
+07CD C002       534            push AR2
+07CF 7A0A       534            mov R2, #10
+07D1 1202A9     534            lcall ?Wait_Milli_Seconds
+07D4 D002       534            pop AR2
+07D6 20A611     534            jb Button_min, continue8
+07D9 30A6FD     534            jnb Button_min, $
+07DC            534   
+07DC E554       535           mov a, reflow_sec
+07DE B40004     536           cjne a, #0x00, sub_reflow_sec
+07E1 E4         537           clr a 
+07E2 0207E8     538           ljmp Continue6
+07E5            539           sub_reflow_sec:
+07E5 2499       540           add a, #0x99 ; add 99 reduces 1
+07E7 D4         541           da a ; Decimal adjust instruction.  Check datasheet for more details!
+07E8            542           Continue6:
+07E8 F554       543           mov reflow_sec, a
+07EA            544           continue8:
+07EA 22         545           ret
+07EB            546       INC_DEC_Reflow_temp:
+07EB            547           ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
+07EB            548   
+07EB 20A464     549               jb SETUP_SOAK_Button, check_decrement2  
+07EE C002       550            push AR2
+07F0 7A32       550            mov R2, #50
+07F2 1202A9     550            lcall ?Wait_Milli_Seconds
+07F5 D002       550            pop AR2         
+07F7 20A458     551               jb SETUP_SOAK_Button, check_decrement2  
+07FA            552               loop_hold_inc:
+07FA            553   
+07FA 30A40F     554               jnb SETUP_SOAK_Button, jump2
+07FD C002       555            push AR2
+07FF 7A64       555            mov R2, #100
+0801 1202A9     555            lcall ?Wait_Milli_Seconds
+0804 D002       555            pop AR2
+0806 30A403     556               jnb SETUP_SOAK_Button, jump2
+0809 020852     557               ljmp hold_done
+080C            558               jump2:
+080C C0E0       559            push acc
+080E 7405       559            mov a, #5
+0810 14         559            dec a
+0811 120331     559            lcall ?Set_Cursor_1 ; Select column and row
+0814 D0E0       559            pop acc
+0816 C000       560            push ar0
+0818 A84C       560            mov r0, reflow_temp+0
+081A 120336     560            lcall ?Display_BCD
+081D D000       560            pop ar0
+081F C0E0       561            push acc
+0821 7407       561            mov a, #7
+0823 14         561            dec a
+0824 120331     561            lcall ?Set_Cursor_1 ; Select column and row
+0827 D0E0       561            pop acc
+0829 C000       562            push ar0
+082B A84D       562            mov r0, reflow_temp+1
+082D 120336     562            lcall ?Display_BCD
+0830 D000       562            pop ar0
+0832 C002       563            push AR2
+0834 7A64       563            mov R2, #100
+0836 1202A9     563            lcall ?Wait_Milli_Seconds
+0839 D002       563            pop AR2         
+083B E54D       564               mov a, reflow_temp+1
+083D 2401       565               add a, #0x01
+083F D4         566               da a ; Decimal adjust instruction.  Check datasheet for more details!
+0840 F54D       567               mov reflow_temp+1, a
+0842 E54D       568               mov a, reflow_temp+1
+0844 7009       569               jnz INC_reflow_temp_done2
+0846 E54C       570               mov a, reflow_temp+0
+0848 2401       571               add a, #0x01
+084A D4         572               da a ; Decimal adjust instruction.  Check datasheet for more details!
+084B F54C       573               mov reflow_temp+0, a
+084D E54D       574               mov a, reflow_temp+1
+084F            575               INC_reflow_temp_done2:
+084F            576               
+084F 0207FA     577               ljmp loop_hold_inc
+0852            578           hold_done:
+0852            579           
+0852            580   
+0852            581   
+0852            582           check_decrement2:
+0852 20A664     583               jb Button_min, DEC_reflow_temp_done2  
+0855 C002       584            push AR2
+0857 7A32       584            mov R2, #50
+0859 1202A9     584            lcall ?Wait_Milli_Seconds
+085C D002       584            pop AR2         
+085E 20A658     585               jb Button_min, DEC_reflow_temp_done2  
+0861            586               loop_hold_dec:
+0861            587   
+0861 30A60F     588               jnb Button_min, jump3
+0864 C002       589            push AR2
+0866 7A64       589            mov R2, #100
+0868 1202A9     589            lcall ?Wait_Milli_Seconds
+086B D002       589            pop AR2
+086D 30A603     590               jnb Button_min, jump3
+0870 0208B9     591               ljmp DEC_reflow_temp_done2
+0873            592               jump3:
+0873 C0E0       593            push acc
+0875 7405       593            mov a, #5
+0877 14         593            dec a
+0878 120331     593            lcall ?Set_Cursor_1 ; Select column and row
+087B D0E0       593            pop acc
+087D C000       594            push ar0
+087F A84C       594            mov r0, reflow_temp+0
+0881 120336     594            lcall ?Display_BCD
+0884 D000       594            pop ar0
+0886 C0E0       595            push acc
+0888 7407       595            mov a, #7
+088A 14         595            dec a
+088B 120331     595            lcall ?Set_Cursor_1 ; Select column and row
+088E D0E0       595            pop acc
+0890 C000       596            push ar0
+0892 A84D       596            mov r0, reflow_temp+1
+0894 120336     596            lcall ?Display_BCD
+0897 D000       596            pop ar0
+0899 C002       597            push AR2
+089B 7A64       597            mov R2, #100
+089D 1202A9     597            lcall ?Wait_Milli_Seconds
+08A0 D002       597            pop AR2         
+08A2 E54D       598               mov a, reflow_temp+1
+08A4 2499       599               add a, #0x99
+08A6 D4         600               da a ; Decimal adjust instruction.  Check datasheet for more details!
+08A7 F54D       601               mov reflow_temp+1, a
+08A9 E54D       602               mov a, reflow_temp+1
+08AB 7009       603               jnz INC_reflow_temp_done
+08AD E54C       604               mov a, reflow_temp+0
+08AF 2499       605               add a, #0x99
+08B1 D4         606               da a ; Decimal adjust instruction.  Check datasheet for more details!
+08B2 F54C       607               mov reflow_temp+0, a
+08B4 E54D       608               mov a, reflow_temp+1
+08B6            609               INC_reflow_temp_done:
+08B6            610               
+08B6 020861     611               ljmp loop_hold_dec
+08B9            612   
+08B9            613           DEC_reflow_temp_done2:
+08B9            614       
+08B9            615   
+08B9 22         616       ret
+08BA            617   setup_soak_page:
+08BA 20A511     618            jb set_BUTTON, continue11
+08BD C002       618            push AR2
+08BF 7A0A       618            mov R2, #10
+08C1 1202A9     618            lcall ?Wait_Milli_Seconds
+08C4 D002       618            pop AR2
+08C6 20A505     618            jb set_BUTTON, continue11
+08C9 30A5FD     618            jnb set_BUTTON, $
+08CC            618   
+08CC B208       619       cpl tt_flag_soak
+08CE            620       continue11:
+08CE            621   
+08CE 200806     622       jb tt_flag_soak, jump4
+08D1 1209B3     623       lcall INC_DEC_soak_time
+08D4 0208DA     624       ljmp display_soak_page
+08D7            625       jump4:
+08D7 1209FB     626       lcall INC_DEC_soak_temp
+08DA            627   
+08DA            628   
+08DA            629       display_soak_page:
+08DA C0E0       630            push acc
+08DC 7405       630            mov a, #5
+08DE 14         630            dec a
+08DF 120331     630            lcall ?Set_Cursor_1 ; Select column and row
+08E2 D0E0       630            pop acc
+08E4 C000       631            push ar0
+08E6 A84E       631            mov r0, soak_temp+0
+08E8 120336     631            lcall ?Display_BCD
+08EB D000       631            pop ar0
+08ED C0E0       632            push acc
+08EF 7407       632            mov a, #7
+08F1 14         632            dec a
+08F2 120331     632            lcall ?Set_Cursor_1 ; Select column and row
+08F5 D0E0       632            pop acc
+08F7 C000       633            push ar0
+08F9 A84F       633            mov r0, soak_temp+1
+08FB 120336     633            lcall ?Display_BCD
+08FE D000       633            pop ar0
+0900            634          
+0900            635       
+0900 C0E0       636            push acc
+0902 7401       636            mov a, #1
+0904 14         636            dec a
+0905 120331     636            lcall ?Set_Cursor_1 ; Select column and row
+0908 D0E0       636            pop acc
+090A C083       637            push dph
+090C C082       637            push dpl
+090E C0E0       637            push acc
+0910 90052E     637            mov dptr, #soak_setup0
+0913 120324     637            lcall ?Send_Constant_String
+0916 D0E0       637            pop acc
+0918 D082       637            pop dpl
+091A D083       637            pop dph
+091C C0E0       638            push acc
+091E 7409       638            mov a, #9
+0920 14         638            dec a
+0921 120331     638            lcall ?Set_Cursor_1 ; Select column and row
+0924 D0E0       638            pop acc
+0926            638   
+0926 C083       639            push dph
+0928 C082       639            push dpl
+092A C0E0       639            push acc
+092C 900533     639            mov dptr, #soak_setup1
+092F 120324     639            lcall ?Send_Constant_String
+0932 D0E0       639            pop acc
+0934 D082       639            pop dpl
+0936 D083       639            pop dph
+0938            640   
+0938 C0E0       641            push acc
+093A 7401       641            mov a, #1
+093C 14         641            dec a
+093D 12032F     641            lcall ?Set_Cursor_2 ; Select column and row
+0940 D0E0       641            pop acc
+0942            641   
+0942 C083       642            push dph
+0944 C082       642            push dpl
+0946 C0E0       642            push acc
+0948 90053B     642            mov dptr, #soak_setup2
+094B 120324     642            lcall ?Send_Constant_String
+094E D0E0       642            pop acc
+0950 D082       642            pop dpl
+0952 D083       642            pop dph
+0954 C0E0       643            push acc
+0956 7408       643            mov a, #8
+0958 14         643            dec a
+0959 12032F     643            lcall ?Set_Cursor_2 ; Select column and row
+095C D0E0       643            pop acc
+095E            643   
+095E C083       644            push dph
+0960 C082       644            push dpl
+0962 C0E0       644            push acc
+0964 900503     644            mov dptr, #dots
+0967 120324     644            lcall ?Send_Constant_String
+096A D0E0       644            pop acc
+096C D082       644            pop dpl
+096E D083       644            pop dph
+0970 C0E0       645            push acc
+0972 740C       645            mov a, #12
+0974 14         645            dec a
+0975 12032F     645            lcall ?Set_Cursor_2 ; Select column and row
+0978 D0E0       645            pop acc
+097A C083       646            push dph
+097C C082       646            push dpl
+097E C0E0       646            push acc
+0980 900540     646            mov dptr, #soak_setup3
+0983 120324     646            lcall ?Send_Constant_String
+0986 D0E0       646            pop acc
+0988 D082       646            pop dpl
+098A D083       646            pop dph
+098C C0E0       647            push acc
+098E 7409       647            mov a, #9
+0990 14         647            dec a
+0991 12032F     647            lcall ?Set_Cursor_2 ; Select column and row
+0994 D0E0       647            pop acc
+0996            647   
+0996 C000       648            push ar0
+0998 A856       648            mov r0, soak_sec
+099A 120336     648            lcall ?Display_BCD
+099D D000       648            pop ar0
+099F C0E0       649            push acc
+09A1 7406       649            mov a, #6
+09A3 14         649            dec a
+09A4 12032F     649            lcall ?Set_Cursor_2 ; Select column and row
+09A7 D0E0       649            pop acc
+09A9 C000       650            push ar0
+09AB A857       650            mov r0, soak_min
+09AD 120336     650            lcall ?Display_BCD
+09B0 D000       650            pop ar0
+09B2 22         651   ret
+09B3            652       INC_DEC_soak_time:
+09B3            653       
+09B3 20A424     654            jb SETUP_SOAK_Button, check_decrement_soak
+09B6 C002       654            push AR2
+09B8 7A0A       654            mov R2, #10
+09BA 1202A9     654            lcall ?Wait_Milli_Seconds
+09BD D002       654            pop AR2
+09BF 20A418     654            jb SETUP_SOAK_Button, check_decrement_soak
+09C2 30A4FD     654            jnb SETUP_SOAK_Button, $
+09C5            654    ; setup soak is also used to increment 
+09C5            655   
+09C5 E556       656           mov a, soak_sec
+09C7 B4590B     657           cjne a, #0x59, add_soak_sec
+09CA E557       658           mov a, soak_min
+09CC 2401       659           add a, #0x01
+09CE D4         660           da a
+09CF F557       661           mov soak_min, a
+09D1 E4         662           clr a 
+09D2 0209D8     663           ljmp Continue12
+09D5            664           add_soak_sec:
+09D5 2401       665           add a, #0x01
+09D7 D4         666           da a ; Decimal adjust instruction.  Check datasheet for more details!
+09D8            667           Continue12:
+09D8 F556       668           mov soak_sec, a
+09DA            669   
+09DA            670           check_decrement_soak:
+09DA 20A61D     671            jb Button_min, continue13
+09DD C002       671            push AR2
+09DF 7A0A       671            mov R2, #10
+09E1 1202A9     671            lcall ?Wait_Milli_Seconds
+09E4 D002       671            pop AR2
+09E6 20A611     671            jb Button_min, continue13
+09E9 30A6FD     671            jnb Button_min, $
+09EC            671   
+09EC E556       672           mov a, soak_sec
+09EE B40004     673           cjne a, #0x00, sub_soak_sec
+09F1 E4         674           clr a 
+09F2 0209F8     675           ljmp Continue14
+09F5            676           sub_soak_sec:
+09F5 2499       677           add a, #0x99 ; add 99 reduces 1
+09F7 D4         678           da a ; Decimal adjust instruction.  Check datasheet for more details!
+09F8            679           Continue14:
+09F8 F556       680           mov soak_sec, a
+09FA            681           continue13:
+09FA            682           
+09FA 22         683           ret
+09FB            684       INC_DEC_soak_temp:
+09FB            685           
+09FB 20A464     686               jb SETUP_SOAK_Button, check_decrement2_soak  
+09FE C002       687            push AR2
+0A00 7A32       687            mov R2, #50
+0A02 1202A9     687            lcall ?Wait_Milli_Seconds
+0A05 D002       687            pop AR2         
+0A07 20A458     688               jb SETUP_SOAK_Button, check_decrement2_soak  
+0A0A            689               loop_hold_inc_soak:
+0A0A            690   
+0A0A 30A40F     691               jnb SETUP_SOAK_Button, jump6
+0A0D C002       692            push AR2
+0A0F 7A64       692            mov R2, #100
+0A11 1202A9     692            lcall ?Wait_Milli_Seconds
+0A14 D002       692            pop AR2
+0A16 30A403     693               jnb SETUP_SOAK_Button, jump6
+0A19 020A62     694               ljmp hold_done_soak
+0A1C            695               jump6:
+0A1C C0E0       696            push acc
+0A1E 7405       696            mov a, #5
+0A20 14         696            dec a
+0A21 120331     696            lcall ?Set_Cursor_1 ; Select column and row
+0A24 D0E0       696            pop acc
+0A26 C000       697            push ar0
+0A28 A84E       697            mov r0, soak_temp+0
+0A2A 120336     697            lcall ?Display_BCD
+0A2D D000       697            pop ar0
+0A2F C0E0       698            push acc
+0A31 7407       698            mov a, #7
+0A33 14         698            dec a
+0A34 120331     698            lcall ?Set_Cursor_1 ; Select column and row
+0A37 D0E0       698            pop acc
+0A39 C000       699            push ar0
+0A3B A84F       699            mov r0, soak_temp+1
+0A3D 120336     699            lcall ?Display_BCD
+0A40 D000       699            pop ar0
+0A42 C002       700            push AR2
+0A44 7AC8       700            mov R2, #200
+0A46 1202A9     700            lcall ?Wait_Milli_Seconds
+0A49 D002       700            pop AR2         
+0A4B E54F       701               mov a, soak_temp+1
+0A4D 2401       702               add a, #0x01
+0A4F D4         703               da a ; Decimal adjust instruction.  Check datasheet for more details!
+0A50 F54F       704               mov soak_temp+1, a
+0A52 E54F       705               mov a, soak_temp+1
+0A54 7009       706               jnz INC_soak_temp_done2
+0A56 E54E       707               mov a, soak_temp+0
+0A58 2401       708               add a, #0x01
+0A5A D4         709               da a ; Decimal adjust instruction.  Check datasheet for more details!
+0A5B F54E       710               mov soak_temp+0, a
+0A5D E54F       711               mov a, soak_temp+1
+0A5F            712               INC_soak_temp_done2:
+0A5F            713               
+0A5F 020A0A     714               ljmp loop_hold_inc_soak
+0A62            715           hold_done_soak:
+0A62            716           
+0A62            717   
+0A62            718   
+0A62            719           check_decrement2_soak:
+0A62 20A664     720               jb Button_min, DEC_soak_temp_done2  
+0A65 C002       721            push AR2
+0A67 7A32       721            mov R2, #50
+0A69 1202A9     721            lcall ?Wait_Milli_Seconds
+0A6C D002       721            pop AR2         
+0A6E 20A658     722               jb Button_min, DEC_soak_temp_done2  
+0A71            723               loop_hold_dec_soak:
+0A71            724   
+0A71 30A60F     725               jnb Button_min, jump7
+0A74 C002       726            push AR2
+0A76 7A64       726            mov R2, #100
+0A78 1202A9     726            lcall ?Wait_Milli_Seconds
+0A7B D002       726            pop AR2
+0A7D 30A603     727               jnb Button_min, jump7
+0A80 020AC9     728               ljmp DEC_soak_temp_done2
+0A83            729               jump7:
+0A83 C0E0       730            push acc
+0A85 7405       730            mov a, #5
+0A87 14         730            dec a
+0A88 120331     730            lcall ?Set_Cursor_1 ; Select column and row
+0A8B D0E0       730            pop acc
+0A8D C000       731            push ar0
+0A8F A84E       731            mov r0, soak_temp+0
+0A91 120336     731            lcall ?Display_BCD
+0A94 D000       731            pop ar0
+0A96 C0E0       732            push acc
+0A98 7407       732            mov a, #7
+0A9A 14         732            dec a
+0A9B 120331     732            lcall ?Set_Cursor_1 ; Select column and row
+0A9E D0E0       732            pop acc
+0AA0 C000       733            push ar0
+0AA2 A84F       733            mov r0, soak_temp+1
+0AA4 120336     733            lcall ?Display_BCD
+0AA7 D000       733            pop ar0
+0AA9 C002       734            push AR2
+0AAB 7A64       734            mov R2, #100
+0AAD 1202A9     734            lcall ?Wait_Milli_Seconds
+0AB0 D002       734            pop AR2         
+0AB2 E54F       735               mov a, soak_temp+1
+0AB4 2499       736               add a, #0x99
+0AB6 D4         737               da a ; Decimal adjust instruction.  Check datasheet for more details!
+0AB7 F54F       738               mov soak_temp+1, a
+0AB9 E54F       739               mov a, soak_temp+1
+0ABB 7009       740               jnz INC_soak_temp_done
+0ABD E54E       741               mov a, soak_temp+0
+0ABF 2499       742               add a, #0x99
+0AC1 D4         743               da a ; Decimal adjust instruction.  Check datasheet for more details!
+0AC2 F54E       744               mov soak_temp+0, a
+0AC4 E54F       745               mov a, soak_temp+1
+0AC6            746               INC_soak_temp_done:
+0AC6            747               
+0AC6 020A71     748               ljmp loop_hold_dec_soak
+0AC9            749   
+0AC9            750           DEC_soak_temp_done2:
+0AC9 22         751           ret
+0ACA            752   second_page:
+0ACA C0E0       753            push acc
+0ACC 7401       753            mov a, #1
+0ACE 14         753            dec a
+0ACF 120331     753            lcall ?Set_Cursor_1 ; Select column and row
+0AD2 D0E0       753            pop acc
+0AD4 C083       754            push dph
+0AD6 C082       754            push dpl
+0AD8 C0E0       754            push acc
+0ADA 900505     754            mov dptr, #soak_reflw
+0ADD 120324     754            lcall ?Send_Constant_String
+0AE0 D0E0       754            pop acc
+0AE2 D082       754            pop dpl
+0AE4 D083       754            pop dph
+0AE6 C0E0       755            push acc
+0AE8 7401       755            mov a, #1
+0AEA 14         755            dec a
+0AEB 12032F     755            lcall ?Set_Cursor_2 ; Select column and row
+0AEE D0E0       755            pop acc
+0AF0 C083       756            push dph
+0AF2 C082       756            push dpl
+0AF4 C0E0       756            push acc
+0AF6 9004BF     756            mov dptr, #nothing
+0AF9 120324     756            lcall ?Send_Constant_String
+0AFC D0E0       756            pop acc
+0AFE D082       756            pop dpl
+0B00 D083       756            pop dph
+0B02 22         757       ret
+0B03            758   ;---------------------------------;
+0B03            759   ; Main program. Includes hardware ;
+0B03            760   ; initialization and 'forever'    ;
+0B03            761   ; loop.                           ;
+0B03            762   ;---------------------------------;
+0B03            763   MainProgram:
+0B03 75817F     764           mov SP, #7FH ; Set the stack pointer to the begining of idata
+0B06            765           ; Initialization_LCD
+0B06 1202F8     766           lcall LCD_4BIT
+0B09            767           ; Initialization_Termometer
+0B09 1203FB     768           lcall INIT_SPI
+0B0C            769           ; Initialization_timer
+0B0C            770       
+0B0C 120362     771           lcall Timer0_Init
+0B0F            772           ;lcall Timer1_Init
+0B0F 12037E     773           lcall Timer2_Init
+0B12 D2AF       774           setb EA   ; Enable Global interrupts
+0B14 D201       775           setb half_seconds_flag
+0B16 755100     776                mov BCD_counter, #0x00
+0B19 755400     777           mov reflow_sec, #0x00
+0B1C 755500     778           mov reflow_min, #0x00
+0B1F 755200     779           mov min, #0x00
+0B22 754600     780           mov state_lcd, #0
+0B25 C206       781           clr TR2_flag
+0B27 754C01     782           mov reflow_temp+0, #0x01
+0B2A 754D50     783           mov reflow_temp+1, #0x50
+0B2D C207       784           clr tt_reflow_flag
+0B2F 755600     785           mov soak_sec, #0x00
+0B32 755700     786           mov soak_min, #0x00
+0B35            787   
+0B35 754E01     788           mov soak_temp+0, #0x01
+0B38 754F50     789           mov soak_temp+1, #0x50
+0B3B            790   
+0B3B            791           
+0B3B            792   
+0B3B            793   
+0B3B            794       Forever: 
+0B3B            795        
+0B3B E546       796           mov a, state_lcd
+0B3D            797   
+0B3D            798   ;        Check_start_Button:
+0B3D            799   ;        PushButton(start,Check_stop_button)
+0B3D            800   ;        setb TR2
+0B3D            801   ;        ljmp forever
+0B3D            802   ;        Check_stop_button:
+0B3D            803   ;        PushButton(stop_Button, Continue8 )
+0B3D            804   ;        clr TR2
+0B3D            805   ;        ljmp Forever 
+0B3D            806   ;     ;   lcall Reset_timer
+0B3D            807   ;        Continue8:
+0B3D            808   
+0B3D            809           ;----------------STATE 0------------------;
+0B3D            810            home_state:
+0B3D B4001E     811               cjne a, #0, soak_reflow_state
+0B40 20A515     812            jb set_BUTTON, done_home2
+0B43 C002       812            push AR2
+0B45 7A0A       812            mov R2, #10
+0B47 1202A9     812            lcall ?Wait_Milli_Seconds
+0B4A D002       812            pop AR2
+0B4C 20A509     812            jb set_BUTTON, done_home2
+0B4F 30A5FD     812            jnb set_BUTTON, $
+0B52            812    
+0B52            813               ;setb set_flag  
+0B52 754601     814               mov state_lcd, #1
+0B55 020B5B     815               ljmp done_home
+0B58            816               done_home2:
+0B58            817               ;clr set_flag
+0B58 120694     818               lcall home_page
+0B5B            819               done_home:
+0B5B 020B3B     820               ljmp Forever           
+0B5E            821           ;------------------------------------------;
+0B5E            822           
+0B5E            823           ;----------------STATE 1-------------------;
+0B5E            824           soak_reflow_state:
+0B5E B4014B     825               cjne a, #1, setup_soak
+0B61 120ACA     826               lcall second_page
+0B64            827             ;  Wait_Milli_Seconds(#50)
+0B64 120673     828               lcall sec_counter ; prevent the timer to go over 60
+0B67 120683     829               lcall min_counter
+0B6A 20A712     830            jb HOME_BUTTON, next_pushb
+0B6D C002       830            push AR2
+0B6F 7A0A       830            mov R2, #10
+0B71 1202A9     830            lcall ?Wait_Milli_Seconds
+0B74 D002       830            pop AR2
+0B76 20A706     830            jb HOME_BUTTON, next_pushb
+0B79 30A7FD     830            jnb HOME_BUTTON, $
+0B7C            830    ; check if home button is pressed 
+0B7C 754600     831               mov state_lcd, #0
+0B7F            832               next_pushb:
+0B7F 20A412     833            jb SETUP_SOAK_Button, next_pushb2
+0B82 C002       833            push AR2
+0B84 7A0A       833            mov R2, #10
+0B86 1202A9     833            lcall ?Wait_Milli_Seconds
+0B89 D002       833            pop AR2
+0B8B 20A406     833            jb SETUP_SOAK_Button, next_pushb2
+0B8E 30A4FD     833            jnb SETUP_SOAK_Button, $
+0B91            833    ; check if the the button to setup soak is pressed
+0B91 754602     834               mov state_lcd, #2
+0B94            835               next_pushb2:
+0B94 20A612     836            jb Button_min, done_soak
+0B97 C002       836            push AR2
+0B99 7A0A       836            mov R2, #10
+0B9B 1202A9     836            lcall ?Wait_Milli_Seconds
+0B9E D002       836            pop AR2
+0BA0 20A606     836            jb Button_min, done_soak
+0BA3 30A6FD     836            jnb Button_min, $
+0BA6            836    ; check if the buttion to setup the reflow was pressed 
+0BA6 754603     837               mov state_lcd, #3
+0BA9            838               done_soak:
+0BA9 020B3B     839              ljmp Forever
+0BAC            840           ;------------------------------------------;
+0BAC            841   
+0BAC            842           ;-----------------STATE 2------------------;
+0BAC            843           setup_soak: ; its actually set up reflow Im dumb
+0BAC B40221     844               cjne a, #2, setup_reflow
+0BAF 1206AA     845               lcall setup_reflow_page
+0BB2            846             ;  Wait_Milli_Seconds(#50)
+0BB2 120673     847               lcall sec_counter ; prevent the timer to go over 60
+0BB5 120683     848               lcall min_counter
+0BB8 20A712     849            jb HOME_BUTTON, done_setup_soak
+0BBB C002       849            push AR2
+0BBD 7A0A       849            mov R2, #10
+0BBF 1202A9     849            lcall ?Wait_Milli_Seconds
+0BC2 D002       849            pop AR2
+0BC4 20A706     849            jb HOME_BUTTON, done_setup_soak
+0BC7 30A7FD     849            jnb HOME_BUTTON, $
+0BCA            849    ; check if home button is pressed 
+0BCA 754600     850               mov state_lcd, #0
+0BCD            851               done_setup_soak:
+0BCD 020B3B     852               ljmp Forever
+0BD0            853           ;------------------------------------------;
+0BD0            854   
+0BD0            855           ;----------------STATE 3-------------------;
+0BD0            856           setup_reflow: ; its actually set up soak Im dumb
+0BD0 B40303     857               cjne a, #3, FDP
+0BD3 020BD9     858               ljmp FDP2
+0BD6            859               FDP:
+0BD6 020B3D     860               ljmp home_state
+0BD9            861               FDP2:
+0BD9 1208BA     862               lcall setup_soak_page
+0BDC 120673     863               lcall sec_counter ; prevent the timer to go over 60
+0BDF 120683     864               lcall min_counter
+0BE2 20A712     865            jb HOME_BUTTON, done_setup_reflow
+0BE5 C002       865            push AR2
+0BE7 7A0A       865            mov R2, #10
+0BE9 1202A9     865            lcall ?Wait_Milli_Seconds
+0BEC D002       865            pop AR2
+0BEE 20A706     865            jb HOME_BUTTON, done_setup_reflow
+0BF1 30A7FD     865            jnb HOME_BUTTON, $
+0BF4            865    ; check if home button is pressed 
+0BF4 754600     866               mov state_lcd, #0
+0BF7            867               done_setup_reflow:
+0BF7 020B3B     868               ljmp Forever
+0BFA            869           ;------------------------------------------;
+0BFA            870   EN
