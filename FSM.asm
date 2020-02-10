@@ -175,10 +175,10 @@
     FLASH_CE    EQU P2.4
     SOUND       EQU P2.7
     
-   ; SETUP_SOAK_Button equ  P2.4
-    set_BUTTON        equ  P2.6
-   ; Button_min    equ  P2.6
-   ; HOME_BUTTON   equ  P2.7
+    SETUP_SOAK_Button equ  P2.1
+    set_BUTTON        equ  P2.0
+    Button_min    equ  P2.6
+    HOME_BUTTON   equ  P2.7
 
 
  ;start         equ P0.7
@@ -834,7 +834,7 @@ T2S_FSM_Error: ; If we got to this point, there is an error in the finite state 
 ;    ret
 ;    
 ;
-;Display_temp:
+Display_temp:
 ;    Load_y(410)
 ;    lcall mul32
 ;    Load_y(1023)
@@ -843,8 +843,8 @@ T2S_FSM_Error: ; If we got to this point, there is an error in the finite state 
 ;    lcall sub32
 ;    lcall hex2bcd
 ;    lcall InitSerialPort
-;    Set_Cursor(1, 1)
-;    Send_Constant_String(#Temp0)
+    Set_Cursor(1, 1)
+    Send_Constant_String(#Temp0)
 ;    lcall SendString
 ;    Set_Cursor(1, 5)    
 ;    Send_BCD(bcd+1) ; send fisrt 2 digits to putty
@@ -857,7 +857,7 @@ T2S_FSM_Error: ; If we got to this point, there is an error in the finite state 
 ;    lcall SendString
 ;    mov DPTR, #Newline
 ;    lcall SendString
-;    ret
+    ret
 ;config_adc:
 ;        clr CE_ADC 
 ;        mov R0, #00000001B; Start bit:1 
@@ -928,294 +928,294 @@ home_page:
     lcall Display_time
     ;-----------------------;
             
-;    ;-----TEMP SENSOR-------;
+    ;-----TEMP SENSOR-------;
     Temp_sensor:
 ;    lcall config_adc
-;    lcall Display_temp
+    lcall Display_temp
 ;    lcall  WaitHalfSec 
 ;    ;-----------------------;
     ret
 ;
-;setup_reflow_page:
-;    PushButton(set_BUTTON, continue9)
-;    cpl tt_reflow_flag
-;    continue9:
-;
-;    jb tt_reflow_flag, jump1
-;    ;jnb tt_reflow_flag, jump1
-;    lcall INC_DEC_Reflow_time
-;    ljmp display_reflow_page
-;    jump1:
-;    lcall INC_DEC_Reflow_temp
-;
-;
-;    display_reflow_page:
-;    Set_Cursor(1, 5)
-;    Display_BCD(reflow_temp+0)
-;    Set_Cursor(1, 7)
-;    Display_BCD(reflow_temp+1)
-;       
-;    
-;    Set_Cursor(1, 1)
-;    Send_Constant_String(#reflow_setup)
-;    Set_Cursor(1, 9)
-;    Send_Constant_String(#reflow_setup4)
-;
-;    Set_Cursor(2, 1)
-;    Send_Constant_String(#reflow_setup2)
-;    Set_Cursor(2, 8)
-;    Send_Constant_String(#dots)
-;    Set_Cursor(2, 12)
-;    Send_Constant_String(#reflow_setup3)
-;    Set_Cursor(2, 9)
-;    Display_BCD(reflow_sec)
-;    Set_Cursor(2, 6)
-;    Display_BCD(reflow_min)
-;
-;    ret
-;    INC_DEC_Reflow_time:
-;
-;        PushButton(SETUP_SOAK_Button,check_decrement) ; setup soak is also used to increment 
-;
-;        mov a, reflow_sec
-;        cjne a, #0x59, add_reflow_sec
-;        mov a, reflow_min
-;        add a, #0x01
-;        da a
-;        mov reflow_min, a
-;        clr a 
-;        ljmp Continue5
-;        add_reflow_sec:
-;        add a, #0x01
-;        da a ; Decimal adjust instruction.  Check datasheet for more details!
-;        Continue5:
-;        mov reflow_sec, a
-;
-;        check_decrement:
-;        PushButton(Button_min, continue8)
-;        mov a, reflow_sec
-;        cjne a, #0x00, sub_reflow_sec
-;        clr a 
-;        ljmp Continue6
-;        sub_reflow_sec:
-;        add a, #0x99 ; add 99 reduces 1
-;        da a ; Decimal adjust instruction.  Check datasheet for more details!
-;        Continue6:
-;        mov reflow_sec, a
-;        continue8:
-;        ret
-;    INC_DEC_Reflow_temp:
-;        ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
-;
-;            jb SETUP_SOAK_Button, check_decrement2  
-;                Wait_Milli_Seconds(#50)	
-;            jb SETUP_SOAK_Button, check_decrement2  
-;            loop_hold_inc:
-;
-;            jnb SETUP_SOAK_Button, jump2
-;            Wait_Milli_Seconds(#100)
-;            jnb SETUP_SOAK_Button, jump2
-;            ljmp hold_done
-;            jump2:
-;            Set_Cursor(1, 5)
-;            Display_BCD(reflow_temp+0)
-;            Set_Cursor(1, 7)
-;            Display_BCD(reflow_temp+1)
-;            Wait_Milli_Seconds(#100)	
-;            mov a, reflow_temp+1
-;            add a, #0x01
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov reflow_temp+1, a
-;            mov a, reflow_temp+1
-;            jnz INC_reflow_temp_done2
-;            mov a, reflow_temp+0
-;            add a, #0x01
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov reflow_temp+0, a
-;            mov a, reflow_temp+1
-;            INC_reflow_temp_done2:
-;            
-;            ljmp loop_hold_inc
-;        hold_done:
-;        
-;
-;
-;        check_decrement2:
-;            jb Button_min, DEC_reflow_temp_done2  
-;                Wait_Milli_Seconds(#50)	
-;            jb Button_min, DEC_reflow_temp_done2  
-;            loop_hold_dec:
-;
-;            jnb Button_min, jump3
-;            Wait_Milli_Seconds(#100)
-;            jnb Button_min, jump3
-;            ljmp DEC_reflow_temp_done2
-;            jump3:
-;            Set_Cursor(1, 5)
-;            Display_BCD(reflow_temp+0)
-;            Set_Cursor(1, 7)
-;            Display_BCD(reflow_temp+1)
-;            Wait_Milli_Seconds(#100)	
-;            mov a, reflow_temp+1
-;            add a, #0x99
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov reflow_temp+1, a
-;            mov a, reflow_temp+1
-;            jnz INC_reflow_temp_done
-;            mov a, reflow_temp+0
-;            add a, #0x99
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov reflow_temp+0, a
-;            mov a, reflow_temp+1
-;            INC_reflow_temp_done:
-;            
-;            ljmp loop_hold_dec
-;
-;        DEC_reflow_temp_done2:
-;    
-;
-;    ret
-;setup_soak_page:
-;    PushButton(set_BUTTON, continue11)
-;    cpl tt_flag_soak
-;    continue11:
-;
-;    jb tt_flag_soak, jump4
-;    lcall INC_DEC_soak_time
-;    ljmp display_soak_page
-;    jump4:
-;    lcall INC_DEC_soak_temp
-;
-;
-;    display_soak_page:
-;    Set_Cursor(1, 5)
-;    Display_BCD(soak_temp+0)
-;    Set_Cursor(1, 7)
-;    Display_BCD(soak_temp+1)
-;       
-;    
-;    Set_Cursor(1, 1)
-;    Send_Constant_String(#soak_setup0)
-;    Set_Cursor(1, 9)
-;    Send_Constant_String(#soak_setup1)
-;
-;    Set_Cursor(2, 1)
-;    Send_Constant_String(#soak_setup2)
-;    Set_Cursor(2, 8)
-;    Send_Constant_String(#dots)
-;    Set_Cursor(2, 12)
-;    Send_Constant_String(#soak_setup3)
-;    Set_Cursor(2, 9)
-;    Display_BCD(soak_sec)
-;    Set_Cursor(2, 6)
-;    Display_BCD(soak_min)
-;ret
-;    INC_DEC_soak_time:
-;    
-;        PushButton(SETUP_SOAK_Button,check_decrement_soak) ; setup soak is also used to increment 
-;
-;        mov a, soak_sec
-;        cjne a, #0x59, add_soak_sec
-;        mov a, soak_min
-;        add a, #0x01
-;        da a
-;        mov soak_min, a
-;        clr a 
-;        ljmp Continue12
-;        add_soak_sec:
-;        add a, #0x01
-;        da a ; Decimal adjust instruction.  Check datasheet for more details!
-;        Continue12:
-;        mov soak_sec, a
-;
-;        check_decrement_soak:
-;        PushButton(Button_min, continue13)
-;        mov a, soak_sec
-;        cjne a, #0x00, sub_soak_sec
-;        clr a 
-;        ljmp Continue14
-;        sub_soak_sec:
-;        add a, #0x99 ; add 99 reduces 1
-;        da a ; Decimal adjust instruction.  Check datasheet for more details!
-;        Continue14:
-;        mov soak_sec, a
-;        continue13:
-;        
-;        ret
-;    INC_DEC_soak_temp:
-;        
-;            jb SETUP_SOAK_Button, check_decrement2_soak  
-;                Wait_Milli_Seconds(#50)	
-;            jb SETUP_SOAK_Button, check_decrement2_soak  
-;            loop_hold_inc_soak:
-;
-;            jnb SETUP_SOAK_Button, jump6
-;            Wait_Milli_Seconds(#100)
-;            jnb SETUP_SOAK_Button, jump6
-;            ljmp hold_done_soak
-;            jump6:
-;            Set_Cursor(1, 5)
-;            Display_BCD(soak_temp+0)
-;            Set_Cursor(1, 7)
-;            Display_BCD(soak_temp+1)
-;            Wait_Milli_Seconds(#200)	
-;            mov a, soak_temp+1
-;            add a, #0x01
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov soak_temp+1, a
-;            mov a, soak_temp+1
-;            jnz INC_soak_temp_done2
-;            mov a, soak_temp+0
-;            add a, #0x01
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov soak_temp+0, a
-;            mov a, soak_temp+1
-;            INC_soak_temp_done2:
-;            
-;            ljmp loop_hold_inc_soak
-;        hold_done_soak:
-;        
-;
-;
-;        check_decrement2_soak:
-;            jb Button_min, DEC_soak_temp_done2  
-;                Wait_Milli_Seconds(#50)	
-;            jb Button_min, DEC_soak_temp_done2  
-;            loop_hold_dec_soak:
-;
-;            jnb Button_min, jump7
-;            Wait_Milli_Seconds(#100)
-;            jnb Button_min, jump7
-;            ljmp DEC_soak_temp_done2
-;            jump7:
-;            Set_Cursor(1, 5)
-;            Display_BCD(soak_temp+0)
-;            Set_Cursor(1, 7)
-;            Display_BCD(soak_temp+1)
-;            Wait_Milli_Seconds(#100)	
-;            mov a, soak_temp+1
-;            add a, #0x99
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov soak_temp+1, a
-;            mov a, soak_temp+1
-;            jnz INC_soak_temp_done
-;            mov a, soak_temp+0
-;            add a, #0x99
-;            da a ; Decimal adjust instruction.  Check datasheet for more details!
-;            mov soak_temp+0, a
-;            mov a, soak_temp+1
-;            INC_soak_temp_done:
-;            
-;            ljmp loop_hold_dec_soak
-;
-;        DEC_soak_temp_done2:
-;        ret
-;second_page:
-;    Set_Cursor(1, 1)
-;    Send_Constant_String(#soak_reflw)
-;    Set_Cursor(2, 1)
-;    Send_Constant_String(#nothing)
-;    ret
+setup_reflow_page:
+    PushButton(set_BUTTON, continue9)
+    cpl tt_reflow_flag
+    continue9:
+
+    jb tt_reflow_flag, jump1
+    ;jnb tt_reflow_flag, jump1
+    lcall INC_DEC_Reflow_time
+    ljmp display_reflow_page
+    jump1:
+    lcall INC_DEC_Reflow_temp
+
+
+    display_reflow_page:
+    Set_Cursor(1, 5)
+    Display_BCD(reflow_temp+0)
+    Set_Cursor(1, 7)
+    Display_BCD(reflow_temp+1)
+       
+    
+    Set_Cursor(1, 1)
+    Send_Constant_String(#reflow_setup)
+    Set_Cursor(1, 9)
+    Send_Constant_String(#reflow_setup4)
+
+    Set_Cursor(2, 1)
+    Send_Constant_String(#reflow_setup2)
+    Set_Cursor(2, 8)
+    Send_Constant_String(#dots)
+    Set_Cursor(2, 12)
+    Send_Constant_String(#reflow_setup3)
+    Set_Cursor(2, 9)
+    Display_BCD(reflow_sec)
+    Set_Cursor(2, 6)
+    Display_BCD(reflow_min)
+
+    ret
+    INC_DEC_Reflow_time:
+
+        PushButton(SETUP_SOAK_Button,check_decrement) ; setup soak is also used to increment 
+
+        mov a, reflow_sec
+        cjne a, #0x59, add_reflow_sec
+        mov a, reflow_min
+        add a, #0x01
+        da a
+        mov reflow_min, a
+        clr a 
+        ljmp Continue5
+        add_reflow_sec:
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        Continue5:
+        mov reflow_sec, a
+
+        check_decrement:
+        PushButton(Button_min, continue8)
+        mov a, reflow_sec
+        cjne a, #0x00, sub_reflow_sec
+        clr a 
+        ljmp Continue6
+        sub_reflow_sec:
+        add a, #0x99 ; add 99 reduces 1
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        Continue6:
+        mov reflow_sec, a
+        continue8:
+        ret
+    INC_DEC_Reflow_temp:
+        ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
+
+            jb SETUP_SOAK_Button, check_decrement2  
+                Wait_Milli_Seconds(#50)	
+            jb SETUP_SOAK_Button, check_decrement2  
+            loop_hold_inc:
+
+            jnb SETUP_SOAK_Button, jump2
+            Wait_Milli_Seconds(#100)
+            jnb SETUP_SOAK_Button, jump2
+            ljmp hold_done
+            jump2:
+            Set_Cursor(1, 5)
+            Display_BCD(reflow_temp+0)
+            Set_Cursor(1, 7)
+            Display_BCD(reflow_temp+1)
+            Wait_Milli_Seconds(#100)	
+            mov a, reflow_temp+1
+            add a, #0x01
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov reflow_temp+1, a
+            mov a, reflow_temp+1
+            jnz INC_reflow_temp_done2
+            mov a, reflow_temp+0
+            add a, #0x01
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov reflow_temp+0, a
+            mov a, reflow_temp+1
+            INC_reflow_temp_done2:
+            
+            ljmp loop_hold_inc
+        hold_done:
+        
+
+
+        check_decrement2:
+            jb Button_min, DEC_reflow_temp_done2  
+                Wait_Milli_Seconds(#50)	
+            jb Button_min, DEC_reflow_temp_done2  
+            loop_hold_dec:
+
+            jnb Button_min, jump3
+            Wait_Milli_Seconds(#100)
+            jnb Button_min, jump3
+            ljmp DEC_reflow_temp_done2
+            jump3:
+            Set_Cursor(1, 5)
+            Display_BCD(reflow_temp+0)
+            Set_Cursor(1, 7)
+            Display_BCD(reflow_temp+1)
+            Wait_Milli_Seconds(#100)	
+            mov a, reflow_temp+1
+            add a, #0x99
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov reflow_temp+1, a
+            mov a, reflow_temp+1
+            jnz INC_reflow_temp_done
+            mov a, reflow_temp+0
+            add a, #0x99
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov reflow_temp+0, a
+            mov a, reflow_temp+1
+            INC_reflow_temp_done:
+            
+            ljmp loop_hold_dec
+
+        DEC_reflow_temp_done2:
+    
+
+    ret
+setup_soak_page:
+    PushButton(set_BUTTON, continue11)
+    cpl tt_flag_soak
+    continue11:
+
+    jb tt_flag_soak, jump4
+    lcall INC_DEC_soak_time
+    ljmp display_soak_page
+    jump4:
+    lcall INC_DEC_soak_temp
+
+
+    display_soak_page:
+    Set_Cursor(1, 5)
+    Display_BCD(soak_temp+0)
+    Set_Cursor(1, 7)
+    Display_BCD(soak_temp+1)
+       
+    
+    Set_Cursor(1, 1)
+    Send_Constant_String(#soak_setup0)
+    Set_Cursor(1, 9)
+    Send_Constant_String(#soak_setup1)
+
+    Set_Cursor(2, 1)
+    Send_Constant_String(#soak_setup2)
+    Set_Cursor(2, 8)
+    Send_Constant_String(#dots)
+    Set_Cursor(2, 12)
+    Send_Constant_String(#soak_setup3)
+    Set_Cursor(2, 9)
+    Display_BCD(soak_sec)
+    Set_Cursor(2, 6)
+    Display_BCD(soak_min)
+ret
+    INC_DEC_soak_time:
+    
+        PushButton(SETUP_SOAK_Button,check_decrement_soak) ; setup soak is also used to increment 
+
+        mov a, soak_sec
+        cjne a, #0x59, add_soak_sec
+        mov a, soak_min
+        add a, #0x01
+        da a
+        mov soak_min, a
+        clr a 
+        ljmp Continue12
+        add_soak_sec:
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        Continue12:
+        mov soak_sec, a
+
+        check_decrement_soak:
+        PushButton(Button_min, continue13)
+        mov a, soak_sec
+        cjne a, #0x00, sub_soak_sec
+        clr a 
+        ljmp Continue14
+        sub_soak_sec:
+        add a, #0x99 ; add 99 reduces 1
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        Continue14:
+        mov soak_sec, a
+        continue13:
+        
+        ret
+    INC_DEC_soak_temp:
+        
+            jb SETUP_SOAK_Button, check_decrement2_soak  
+                Wait_Milli_Seconds(#50)	
+            jb SETUP_SOAK_Button, check_decrement2_soak  
+            loop_hold_inc_soak:
+
+            jnb SETUP_SOAK_Button, jump6
+            Wait_Milli_Seconds(#100)
+            jnb SETUP_SOAK_Button, jump6
+            ljmp hold_done_soak
+            jump6:
+            Set_Cursor(1, 5)
+            Display_BCD(soak_temp+0)
+            Set_Cursor(1, 7)
+            Display_BCD(soak_temp+1)
+            Wait_Milli_Seconds(#200)	
+            mov a, soak_temp+1
+            add a, #0x01
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov soak_temp+1, a
+            mov a, soak_temp+1
+            jnz INC_soak_temp_done2
+            mov a, soak_temp+0
+            add a, #0x01
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov soak_temp+0, a
+            mov a, soak_temp+1
+            INC_soak_temp_done2:
+            
+            ljmp loop_hold_inc_soak
+        hold_done_soak:
+        
+
+
+        check_decrement2_soak:
+            jb Button_min, DEC_soak_temp_done2  
+                Wait_Milli_Seconds(#50)	
+            jb Button_min, DEC_soak_temp_done2  
+            loop_hold_dec_soak:
+
+            jnb Button_min, jump7
+            Wait_Milli_Seconds(#100)
+            jnb Button_min, jump7
+            ljmp DEC_soak_temp_done2
+            jump7:
+            Set_Cursor(1, 5)
+            Display_BCD(soak_temp+0)
+            Set_Cursor(1, 7)
+            Display_BCD(soak_temp+1)
+            Wait_Milli_Seconds(#100)	
+            mov a, soak_temp+1
+            add a, #0x99
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov soak_temp+1, a
+            mov a, soak_temp+1
+            jnz INC_soak_temp_done
+            mov a, soak_temp+0
+            add a, #0x99
+            da a ; Decimal adjust instruction.  Check datasheet for more details!
+            mov soak_temp+0, a
+            mov a, soak_temp+1
+            INC_soak_temp_done:
+            
+            ljmp loop_hold_dec_soak
+
+        DEC_soak_temp_done2:
+        ret
+second_page:
+    Set_Cursor(1, 1)
+    Send_Constant_String(#soak_reflw)
+    Set_Cursor(2, 1)
+    Send_Constant_String(#nothing)
+    ret
 
 FSM_LCD:
         mov a, state_lcd
@@ -1237,38 +1237,38 @@ FSM_LCD:
         
      ;   ;----------------STATE 1-------------------;
         soak_reflow_state:
-     ;       cjne a, #1, setup_soak
-     ;       lcall second_page
-     ;     ;  Wait_Milli_Seconds(#50)
-     ;       lcall sec_counter ; prevent the timer to go over 60
-     ;       lcall min_counter
-     ;       PushButton(HOME_BUTTON,next_pushb) ; check if home button is pressed 
-     ;       mov state_lcd, #0
-     ;       next_pushb:
-     ;       PushButton(SETUP_SOAK_Button,next_pushb2) ; check if the the button to setup soak is pressed
-     ;       mov state_lcd, #2
-     ;       next_pushb2:
-     ;       PushButton(Button_min,done_soak) ; check if the buttion to setup the reflow was pressed 
-     ;       mov state_lcd, #3
-     ;       done_soak:
-     ;      ljmp Forever_done 
-     ;   ;------------------------------------------;
+            cjne a, #1, setup_soak
+            lcall second_page
+          ;  Wait_Milli_Seconds(#50)
+            lcall sec_counter ; prevent the timer to go over 60
+            lcall min_counter
+            PushButton(HOME_BUTTON,next_pushb) ; check if home button is pressed 
+            mov state_lcd, #0
+            next_pushb:
+            PushButton(SETUP_SOAK_Button,next_pushb2) ; check if the the button to setup soak is pressed
+            mov state_lcd, #2
+            next_pushb2:
+            PushButton(Button_min,done_soak) ; check if the buttion to setup the reflow was pressed 
+            mov state_lcd, #3
+            done_soak:
+           ljmp Forever_done 
+        ;------------------------------------------;
 ;
      ;   ;-----------------STATE 2------------------;
-     ;   setup_soak: ; its actually set up reflow Im dumb
-     ;       cjne a, #2, setup_reflow
-     ;       lcall setup_reflow_page
-     ;     ;  Wait_Milli_Seconds(#50)
-     ;       lcall sec_counter ; prevent the timer to go over 60
-     ;       lcall min_counter
-     ;       PushButton(HOME_BUTTON,done_setup_soak) ; check if home button is pressed 
-     ;       mov state_lcd, #0
-     ;       done_setup_soak:
-     ;       ljmp Forever_done 
-     ;   ;------------------------------------------;
+        setup_soak: ; its actually set up reflow Im dumb
+            cjne a, #2, setup_reflow
+            lcall setup_reflow_page
+          ;  Wait_Milli_Seconds(#50)
+            lcall sec_counter ; prevent the timer to go over 60
+            lcall min_counter
+            PushButton(HOME_BUTTON,done_setup_soak) ; check if home button is pressed 
+            mov state_lcd, #0
+            done_setup_soak:
+            ljmp Forever_done 
+        ;------------------------------------------;
 ;
      ;   ;----------------STATE 3-------------------;
-     ;   setup_reflow: ; its actually set up soak Im dumb
+        setup_reflow: ; its actually set up soak Im dumb
      ;       cjne a, #3, FDP
      ;       ljmp FDP2
      ;       FDP:
