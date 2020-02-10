@@ -1091,228 +1091,209 @@
 089F 02084A     602           ljmp loop_hold_dec
 08A2            603   
 08A2            604       DEC_reflow_temp_done2:
-08A2            605   ;    hold_done2:
-08A2            606   ;
-08A2            607   ;    PushButton(Button_min, DEC_reflow_temp_done2)
-08A2            608   ;    ljmp continue10
-08A2            609   ;    DEC_reflow_temp_done2:
-08A2            610   ;    ljmp DEC_reflow_temp_done
-08A2            611   ;    continue10:
-08A2            612   ;    mov a, reflow_temp+1
-08A2            613   ;    add a, #0x99
-08A2            614   ;    da a ; Decimal adjust instruction.  Check datasheet for more details!
-08A2            615   ;    mov reflow_temp+1, a
-08A2            616   ;    mov a, reflow_temp+1
-08A2            617   ;    jnz DEC_reflow_temp_done
-08A2            618   ;    mov a, reflow_temp+0
-08A2            619   ;    add a, #0x99
-08A2            620   ;    da a ; Decimal adjust instruction.  Check datasheet for more details!
-08A2            621   ;    mov reflow_temp+0, a
-08A2            622   ;    mov a, reflow_temp+1
-08A2            623   ;    DEC_reflow_temp_done:
-08A2            624   ;;    
-08A2            625   
-08A2 22         626       ret
-08A3            627   second_page:
-08A3 C0E0       628            push acc
-08A5 7401       628            mov a, #1
-08A7 14         628            dec a
-08A8 120331     628            lcall ?Set_Cursor_1 ; Select column and row
-08AB D0E0       628            pop acc
-08AD C083       629            push dph
-08AF C082       629            push dpl
-08B1 C0E0       629            push acc
-08B3 900505     629            mov dptr, #soak_reflw
-08B6 120324     629            lcall ?Send_Constant_String
-08B9 D0E0       629            pop acc
-08BB D082       629            pop dpl
-08BD D083       629            pop dph
-08BF C0E0       630            push acc
-08C1 7401       630            mov a, #1
-08C3 14         630            dec a
-08C4 12032F     630            lcall ?Set_Cursor_2 ; Select column and row
-08C7 D0E0       630            pop acc
-08C9 C083       631            push dph
-08CB C082       631            push dpl
-08CD C0E0       631            push acc
-08CF 9004BF     631            mov dptr, #nothing
-08D2 120324     631            lcall ?Send_Constant_String
-08D5 D0E0       631            pop acc
-08D7 D082       631            pop dpl
-08D9 D083       631            pop dph
-08DB 22         632       ret
-08DC            633   ;---------------------------------;
-08DC            634   ; Main program. Includes hardware ;
-08DC            635   ; initialization and 'forever'    ;
-08DC            636   ; loop.                           ;
-08DC            637   ;---------------------------------;
-08DC            638   MainProgram:
-08DC 75817F     639           mov SP, #7FH ; Set the stack pointer to the begining of idata
-08DF            640           ; Initialization_LCD
-08DF 1202F8     641           lcall LCD_4BIT
-08E2            642           ; Initialization_Termometer
-08E2 1203FB     643           lcall INIT_SPI
-08E5            644           ; Initialization_timer
-08E5            645       
-08E5 120362     646           lcall Timer0_Init
-08E8            647           ;lcall Timer1_Init
-08E8 12037E     648           lcall Timer2_Init
-08EB D2AF       649           setb EA   ; Enable Global interrupts
-08ED D201       650           setb half_seconds_flag
-08EF 754F00     651                mov BCD_counter, #0x00
-08F2 755200     652           mov reflow_sec, #0x00
-08F5 755300     653           mov reflow_min, #0x00
-08F8 755000     654           mov min, #0x00
-08FB 754600     655           mov state_lcd, #0
-08FE C206       656           clr TR2_flag
-0900 754C01     657           mov reflow_temp+0, #0x01
-0903 754D50     658           mov reflow_temp+1, #0x50
-0906 C207       659           clr tt_reflow_flag
-0908            660   
-0908            661           
-0908            662   
-0908            663   
-0908            664       Forever: 
-0908            665        
-0908 E546       666           mov a, state_lcd
-090A            667   
-090A            668   ;        Check_start_Button:
-090A            669   ;        PushButton(start,Check_stop_button)
-090A            670   ;        setb TR2
-090A            671   ;        ljmp forever
-090A            672   ;        Check_stop_button:
-090A            673   ;        PushButton(stop_Button, Continue8 )
-090A            674   ;        clr TR2
-090A            675   ;        ljmp Forever 
-090A            676   ;     ;   lcall Reset_timer
-090A            677   ;        Continue8:
-090A            678   
-090A            679           ;----------------STATE 0------------------;
-090A            680            home_state:
-090A B4001E     681               cjne a, #0, soak_reflow_state
-090D 20A515     682            jb set_BUTTON, done_home2
-0910 C002       682            push AR2
-0912 7A0A       682            mov R2, #10
-0914 1202A9     682            lcall ?Wait_Milli_Seconds
-0917 D002       682            pop AR2
-0919 20A509     682            jb set_BUTTON, done_home2
-091C 30A5FD     682            jnb set_BUTTON, $
-091F            682    
-091F            683               ;setb set_flag  
-091F 754601     684               mov state_lcd, #1
-0922 020928     685               ljmp done_home
-0925            686               done_home2:
-0925            687               ;clr set_flag
-0925 12067D     688               lcall home_page
-0928            689               done_home:
-0928 020908     690               ljmp Forever           
-092B            691           ;------------------------------------------;
-092B            692           
-092B            693           ;----------------STATE 1-------------------;
-092B            694           soak_reflow_state:
-092B B4014B     695               cjne a, #1, setup_soak
-092E 1208A3     696               lcall second_page
-0931            697             ;  Wait_Milli_Seconds(#50)
-0931 12065C     698               lcall sec_counter ; prevent the timer to go over 60
-0934 12066C     699               lcall min_counter
-0937 20A712     700            jb HOME_BUTTON, next_pushb
-093A C002       700            push AR2
-093C 7A0A       700            mov R2, #10
-093E 1202A9     700            lcall ?Wait_Milli_Seconds
-0941 D002       700            pop AR2
-0943 20A706     700            jb HOME_BUTTON, next_pushb
-0946 30A7FD     700            jnb HOME_BUTTON, $
-0949            700    ; check if home button is pressed 
-0949 754600     701               mov state_lcd, #0
-094C            702               next_pushb:
-094C 20A412     703            jb SETUP_SOAK_Button, next_pushb2
-094F C002       703            push AR2
-0951 7A0A       703            mov R2, #10
-0953 1202A9     703            lcall ?Wait_Milli_Seconds
-0956 D002       703            pop AR2
-0958 20A406     703            jb SETUP_SOAK_Button, next_pushb2
-095B 30A4FD     703            jnb SETUP_SOAK_Button, $
-095E            703    ; check if the the button to setup soak is pressed
-095E 754602     704               mov state_lcd, #2
-0961            705               next_pushb2:
-0961 20A612     706            jb Button_min, done_soak
-0964 C002       706            push AR2
-0966 7A0A       706            mov R2, #10
-0968 1202A9     706            lcall ?Wait_Milli_Seconds
-096B D002       706            pop AR2
-096D 20A606     706            jb Button_min, done_soak
-0970 30A6FD     706            jnb Button_min, $
-0973            706    ; check if the buttion to setup the reflow was pressed 
-0973 754603     707               mov state_lcd, #3
-0976            708               done_soak:
-0976 020908     709              ljmp Forever
-0979            710           ;------------------------------------------;
-0979            711   
-0979            712           ;-----------------STATE 2------------------;
-0979            713           setup_soak:
-0979 B40221     714               cjne a, #2, setup_reflow
-097C 120693     715               lcall setup_reflow_page
-097F            716             ;  Wait_Milli_Seconds(#50)
-097F 12065C     717               lcall sec_counter ; prevent the timer to go over 60
-0982 12066C     718               lcall min_counter
-0985 20A712     719            jb HOME_BUTTON, done_setup_soak
-0988 C002       719            push AR2
-098A 7A0A       719            mov R2, #10
-098C 1202A9     719            lcall ?Wait_Milli_Seconds
-098F D002       719            pop AR2
-0991 20A706     719            jb HOME_BUTTON, done_setup_soak
-0994 30A7FD     719            jnb HOME_BUTTON, $
-0997            719    ; check if home button is pressed 
-0997 754600     720               mov state_lcd, #0
-099A            721               done_setup_soak:
-099A 020908     722               ljmp Forever
-099D            723           ;------------------------------------------;
-099D            724   
-099D            725           ;----------------STATE 3-------------------;
-099D            726           setup_reflow:
-099D B40303     727               cjne a, #3, FDP
-09A0 0209A6     728               ljmp FDP2
-09A3            729               FDP:
-09A3 02090A     730               ljmp home_state
-09A6            731               FDP2:
-09A6 C0E0       732            push acc
-09A8 7401       732            mov a, #1
-09AA 14         732            dec a
-09AB 120331     732            lcall ?Set_Cursor_1 ; Select column and row
-09AE D0E0       732            pop acc
-09B0 C083       733            push dph
-09B2 C082       733            push dpl
-09B4 C0E0       733            push acc
-09B6 9004D0     733            mov dptr, #test2
-09B9 120324     733            lcall ?Send_Constant_String
-09BC D0E0       733            pop acc
-09BE D082       733            pop dpl
-09C0 D083       733            pop dph
-09C2 C0E0       734            push acc
-09C4 7401       734            mov a, #1
-09C6 14         734            dec a
-09C7 12032F     734            lcall ?Set_Cursor_2 ; Select column and row
-09CA D0E0       734            pop acc
-09CC C083       735            push dph
-09CE C082       735            push dpl
-09D0 C0E0       735            push acc
-09D2 9004D0     735            mov dptr, #test2
-09D5 120324     735            lcall ?Send_Constant_String
-09D8 D0E0       735            pop acc
-09DA D082       735            pop dpl
-09DC D083       735            pop dph
-09DE 12065C     736               lcall sec_counter ; prevent the timer to go over 60
-09E1 12066C     737               lcall min_counter
-09E4 20A712     738            jb HOME_BUTTON, done_setup_reflow
-09E7 C002       738            push AR2
-09E9 7A0A       738            mov R2, #10
-09EB 1202A9     738            lcall ?Wait_Milli_Seconds
-09EE D002       738            pop AR2
-09F0 20A706     738            jb HOME_BUTTON, done_setup_reflow
-09F3 30A7FD     738            jnb HOME_BUTTON, $
-09F6            738    ; check if home button is pressed 
-09F6 754600     739               mov state_lcd, #0
-09F9            740               done_setup_reflow:
-09F9 020908     741               ljmp Forever
-09FC            742           ;------------------------------------------;
-09FC            743   END
+08A2            605      
+08A2            606   
+08A2 22         607       ret
+08A3            608   second_page:
+08A3 C0E0       609            push acc
+08A5 7401       609            mov a, #1
+08A7 14         609            dec a
+08A8 120331     609            lcall ?Set_Cursor_1 ; Select column and row
+08AB D0E0       609            pop acc
+08AD C083       610            push dph
+08AF C082       610            push dpl
+08B1 C0E0       610            push acc
+08B3 900505     610            mov dptr, #soak_reflw
+08B6 120324     610            lcall ?Send_Constant_String
+08B9 D0E0       610            pop acc
+08BB D082       610            pop dpl
+08BD D083       610            pop dph
+08BF C0E0       611            push acc
+08C1 7401       611            mov a, #1
+08C3 14         611            dec a
+08C4 12032F     611            lcall ?Set_Cursor_2 ; Select column and row
+08C7 D0E0       611            pop acc
+08C9 C083       612            push dph
+08CB C082       612            push dpl
+08CD C0E0       612            push acc
+08CF 9004BF     612            mov dptr, #nothing
+08D2 120324     612            lcall ?Send_Constant_String
+08D5 D0E0       612            pop acc
+08D7 D082       612            pop dpl
+08D9 D083       612            pop dph
+08DB 22         613       ret
+08DC            614   ;---------------------------------;
+08DC            615   ; Main program. Includes hardware ;
+08DC            616   ; initialization and 'forever'    ;
+08DC            617   ; loop.                           ;
+08DC            618   ;---------------------------------;
+08DC            619   MainProgram:
+08DC 75817F     620           mov SP, #7FH ; Set the stack pointer to the begining of idata
+08DF            621           ; Initialization_LCD
+08DF 1202F8     622           lcall LCD_4BIT
+08E2            623           ; Initialization_Termometer
+08E2 1203FB     624           lcall INIT_SPI
+08E5            625           ; Initialization_timer
+08E5            626       
+08E5 120362     627           lcall Timer0_Init
+08E8            628           ;lcall Timer1_Init
+08E8 12037E     629           lcall Timer2_Init
+08EB D2AF       630           setb EA   ; Enable Global interrupts
+08ED D201       631           setb half_seconds_flag
+08EF 754F00     632                mov BCD_counter, #0x00
+08F2 755200     633           mov reflow_sec, #0x00
+08F5 755300     634           mov reflow_min, #0x00
+08F8 755000     635           mov min, #0x00
+08FB 754600     636           mov state_lcd, #0
+08FE C206       637           clr TR2_flag
+0900 754C01     638           mov reflow_temp+0, #0x01
+0903 754D50     639           mov reflow_temp+1, #0x50
+0906 C207       640           clr tt_reflow_flag
+0908            641   
+0908            642           
+0908            643   
+0908            644   
+0908            645       Forever: 
+0908            646        
+0908 E546       647           mov a, state_lcd
+090A            648   
+090A            649   ;        Check_start_Button:
+090A            650   ;        PushButton(start,Check_stop_button)
+090A            651   ;        setb TR2
+090A            652   ;        ljmp forever
+090A            653   ;        Check_stop_button:
+090A            654   ;        PushButton(stop_Button, Continue8 )
+090A            655   ;        clr TR2
+090A            656   ;        ljmp Forever 
+090A            657   ;     ;   lcall Reset_timer
+090A            658   ;        Continue8:
+090A            659   
+090A            660           ;----------------STATE 0------------------;
+090A            661            home_state:
+090A B4001E     662               cjne a, #0, soak_reflow_state
+090D 20A515     663            jb set_BUTTON, done_home2
+0910 C002       663            push AR2
+0912 7A0A       663            mov R2, #10
+0914 1202A9     663            lcall ?Wait_Milli_Seconds
+0917 D002       663            pop AR2
+0919 20A509     663            jb set_BUTTON, done_home2
+091C 30A5FD     663            jnb set_BUTTON, $
+091F            663    
+091F            664               ;setb set_flag  
+091F 754601     665               mov state_lcd, #1
+0922 020928     666               ljmp done_home
+0925            667               done_home2:
+0925            668               ;clr set_flag
+0925 12067D     669               lcall home_page
+0928            670               done_home:
+0928 020908     671               ljmp Forever           
+092B            672           ;------------------------------------------;
+092B            673           
+092B            674           ;----------------STATE 1-------------------;
+092B            675           soak_reflow_state:
+092B B4014B     676               cjne a, #1, setup_soak
+092E 1208A3     677               lcall second_page
+0931            678             ;  Wait_Milli_Seconds(#50)
+0931 12065C     679               lcall sec_counter ; prevent the timer to go over 60
+0934 12066C     680               lcall min_counter
+0937 20A712     681            jb HOME_BUTTON, next_pushb
+093A C002       681            push AR2
+093C 7A0A       681            mov R2, #10
+093E 1202A9     681            lcall ?Wait_Milli_Seconds
+0941 D002       681            pop AR2
+0943 20A706     681            jb HOME_BUTTON, next_pushb
+0946 30A7FD     681            jnb HOME_BUTTON, $
+0949            681    ; check if home button is pressed 
+0949 754600     682               mov state_lcd, #0
+094C            683               next_pushb:
+094C 20A412     684            jb SETUP_SOAK_Button, next_pushb2
+094F C002       684            push AR2
+0951 7A0A       684            mov R2, #10
+0953 1202A9     684            lcall ?Wait_Milli_Seconds
+0956 D002       684            pop AR2
+0958 20A406     684            jb SETUP_SOAK_Button, next_pushb2
+095B 30A4FD     684            jnb SETUP_SOAK_Button, $
+095E            684    ; check if the the button to setup soak is pressed
+095E 754602     685               mov state_lcd, #2
+0961            686               next_pushb2:
+0961 20A612     687            jb Button_min, done_soak
+0964 C002       687            push AR2
+0966 7A0A       687            mov R2, #10
+0968 1202A9     687            lcall ?Wait_Milli_Seconds
+096B D002       687            pop AR2
+096D 20A606     687            jb Button_min, done_soak
+0970 30A6FD     687            jnb Button_min, $
+0973            687    ; check if the buttion to setup the reflow was pressed 
+0973 754603     688               mov state_lcd, #3
+0976            689               done_soak:
+0976 020908     690              ljmp Forever
+0979            691           ;------------------------------------------;
+0979            692   
+0979            693           ;-----------------STATE 2------------------;
+0979            694           setup_soak:
+0979 B40221     695               cjne a, #2, setup_reflow
+097C 120693     696               lcall setup_reflow_page
+097F            697             ;  Wait_Milli_Seconds(#50)
+097F 12065C     698               lcall sec_counter ; prevent the timer to go over 60
+0982 12066C     699               lcall min_counter
+0985 20A712     700            jb HOME_BUTTON, done_setup_soak
+0988 C002       700            push AR2
+098A 7A0A       700            mov R2, #10
+098C 1202A9     700            lcall ?Wait_Milli_Seconds
+098F D002       700            pop AR2
+0991 20A706     700            jb HOME_BUTTON, done_setup_soak
+0994 30A7FD     700            jnb HOME_BUTTON, $
+0997            700    ; check if home button is pressed 
+0997 754600     701               mov state_lcd, #0
+099A            702               done_setup_soak:
+099A 020908     703               ljmp Forever
+099D            704           ;------------------------------------------;
+099D            705   
+099D            706           ;----------------STATE 3-------------------;
+099D            707           setup_reflow:
+099D B40303     708               cjne a, #3, FDP
+09A0 0209A6     709               ljmp FDP2
+09A3            710               FDP:
+09A3 02090A     711               ljmp home_state
+09A6            712               FDP2:
+09A6 C0E0       713            push acc
+09A8 7401       713            mov a, #1
+09AA 14         713            dec a
+09AB 120331     713            lcall ?Set_Cursor_1 ; Select column and row
+09AE D0E0       713            pop acc
+09B0 C083       714            push dph
+09B2 C082       714            push dpl
+09B4 C0E0       714            push acc
+09B6 9004D0     714            mov dptr, #test2
+09B9 120324     714            lcall ?Send_Constant_String
+09BC D0E0       714            pop acc
+09BE D082       714            pop dpl
+09C0 D083       714            pop dph
+09C2 C0E0       715            push acc
+09C4 7401       715            mov a, #1
+09C6 14         715            dec a
+09C7 12032F     715            lcall ?Set_Cursor_2 ; Select column and row
+09CA D0E0       715            pop acc
+09CC C083       716            push dph
+09CE C082       716            push dpl
+09D0 C0E0       716            push acc
+09D2 9004D0     716            mov dptr, #test2
+09D5 120324     716            lcall ?Send_Constant_String
+09D8 D0E0       716            pop acc
+09DA D082       716            pop dpl
+09DC D083       716            pop dph
+09DE 12065C     717               lcall sec_counter ; prevent the timer to go over 60
+09E1 12066C     718               lcall min_counter
+09E4 20A712     719            jb HOME_BUTTON, done_setup_reflow
+09E7 C002       719            push AR2
+09E9 7A0A       719            mov R2, #10
+09EB 1202A9     719            lcall ?Wait_Milli_Seconds
+09EE D002       719            pop AR2
+09F0 20A706     719            jb HOME_BUTTON, done_setup_reflow
+09F3 30A7FD     719            jnb HOME_BUTTON, $
+09F6            719    ; check if home button is pressed 
+09F6 754600     720               mov state_lcd, #0
+09F9            721               done_setup_reflow:
+09F9 020908     722               ljmp Forever
+09FC            723           ;------------------------------------------;
+09FC            724   END

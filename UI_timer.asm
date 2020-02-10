@@ -28,6 +28,7 @@
         org 0x002B
             ljmp Timer2_ISR
 
+    ;CLK  EQU 22118400
     CLK  EQU 22118400
     ;termometer
     BAUD equ 115200
@@ -68,6 +69,8 @@
 
     ;Timer variables
     Count1ms:     ds 2 ; Used to determine when half second has passed
+    reflow_temp:  ds 2
+    reflow_temp_var: ds 1
     BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
     min:          ds 1
     hour:         ds 1
@@ -90,6 +93,7 @@
     on_off_flag:       dbit 1 ; 1 is on
     alarm_buzzer_flag: dbit 1
     TR2_flag:          dbit 1
+    tt_reflow_flag:    dbit 1
 
 ;Pins Config (cseg)
     CSEG 
@@ -99,13 +103,13 @@
     setup 		  equ P0.2
     setmin		  equ P0.3
     sethour 	  equ P0.4
-    setday        equ P0.5
+   ; setday        equ P0.5
 
-    start         equ P0.7
+    ;start         equ P0.7
 
-    LCD_RS        equ P1.1
-    LCD_RW        equ P1.2
-    LCD_E         equ P1.3
+    LCD_RS        equ P0.5
+    LCD_RW        equ P0.6
+    LCD_E         equ P0.7
     start2         equ p1.7   ;in slide it was KEY.3 which should be decided later so p1.7 is just a random pin
 
 
@@ -120,10 +124,10 @@
     HOME_BUTTON   equ  P2.7
 
     ;LCD 4bits data
-    LCD_D4        equ  P3.2
-    LCD_D5        equ  P3.3
-    LCD_D6        equ  P3.4
-    LCD_D7        equ  P3.5
+    LCD_D4        equ  P1.2
+    LCD_D5        equ  P1.3
+    LCD_D6        equ  P1.4
+    LCD_D7        equ  P1.6
 
     BOOT_BUTTON   equ  P4.5
     SOUND_OUT     equ  P3.7
@@ -304,14 +308,14 @@
         pop acc     
         ret 
     
-    WaitHalfSec:
+WaitHalfSec:
         mov R2, #178
-    Lr3: mov R1, #250
-    Lr2: mov R0, #166
-    Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
-    djnz R1, Lr2 ; 22.51519us*250=5.629ms
-    djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
-    ret
+        Lr3: mov R1, #250
+        Lr2: mov R0, #166
+        Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
+        djnz R1, Lr2 ; 22.51519us*250=5.629ms
+        djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
+        ret
 	
 blink:
         mov SP, #7FH
@@ -348,8 +352,10 @@ Strings:
     Time:             db 'Time xx:xx SET  ', 0
     dots:             db ':',0
     soak_reflw:       db '  SOAK  REFLOW  ', 0
-    reflow_setup:     db 'Temp:XXX*REFLOW*',0
-    reflow_setup2:    db 'Time XX:XX HOME ',0
+    reflow_setup:     db 'Temp',0
+    reflow_setup4:    db '*REFLOW*',0
+    reflow_setup2:    db 'Time',0
+    reflow_setup3:    db 'HOME',0
 
 
 convert:
@@ -461,13 +467,36 @@ home_page:
     ret
 
 setup_reflow_page:
-    jnb half_seconds_flag, display_reflow_page
+    PushButton(set_BUTTON, continue9)
+    cpl tt_reflow_flag
+    continue9:
+
+    jb tt_reflow_flag, jump1
+    ;jnb tt_reflow_flag, jump1
     lcall INC_DEC_Reflow_time
+    ljmp display_reflow_page
+    jump1:
+    lcall INC_DEC_Reflow_temp
+
+
     display_reflow_page:
+    Set_Cursor(1, 5)
+    Display_BCD(reflow_temp+0)
+    Set_Cursor(1, 7)
+    Display_BCD(reflow_temp+1)
+       
+    
     Set_Cursor(1, 1)
     Send_Constant_String(#reflow_setup)
+    Set_Cursor(1, 9)
+    Send_Constant_String(#reflow_setup4)
+
     Set_Cursor(2, 1)
     Send_Constant_String(#reflow_setup2)
+    Set_Cursor(2, 8)
+    Send_Constant_String(#dots)
+    Set_Cursor(2, 12)
+    Send_Constant_String(#reflow_setup3)
     Set_Cursor(2, 9)
     Display_BCD(reflow_sec)
     Set_Cursor(2, 6)
@@ -496,10 +525,6 @@ INC_DEC_Reflow_time:
     PushButton(Button_min, continue8)
     mov a, reflow_sec
     cjne a, #0x00, sub_reflow_sec
-    mov a, reflow_min
-    add a, #0x99
-    da a
-    mov reflow_min, a
     clr a 
     ljmp Continue6
     sub_reflow_sec:
@@ -508,6 +533,77 @@ INC_DEC_Reflow_time:
     Continue6:
     mov reflow_sec, a
     continue8:
+    ret
+INC_DEC_Reflow_temp:
+    ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
+
+        jb SETUP_SOAK_Button, check_decrement2  
+            Wait_Milli_Seconds(#50)	
+        jb SETUP_SOAK_Button, check_decrement2  
+        loop_hold_inc:
+
+		jnb SETUP_SOAK_Button, jump2
+        Wait_Milli_Seconds(#100)
+        jnb SETUP_SOAK_Button, jump2
+        ljmp hold_done
+        jump2:
+        Set_Cursor(1, 5)
+        Display_BCD(reflow_temp+0)
+        Set_Cursor(1, 7)
+        Display_BCD(reflow_temp+1)
+        Wait_Milli_Seconds(#100)	
+        mov a, reflow_temp+1
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+1, a
+        mov a, reflow_temp+1
+        jnz INC_reflow_temp_done2
+        mov a, reflow_temp+0
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+0, a
+        mov a, reflow_temp+1
+        INC_reflow_temp_done2:
+        
+        ljmp loop_hold_inc
+    hold_done:
+    
+
+
+    check_decrement2:
+        jb Button_min, DEC_reflow_temp_done2  
+            Wait_Milli_Seconds(#50)	
+        jb Button_min, DEC_reflow_temp_done2  
+        loop_hold_dec:
+
+		jnb Button_min, jump3
+        Wait_Milli_Seconds(#100)
+        jnb Button_min, jump3
+        ljmp DEC_reflow_temp_done2
+        jump3:
+        Set_Cursor(1, 5)
+        Display_BCD(reflow_temp+0)
+        Set_Cursor(1, 7)
+        Display_BCD(reflow_temp+1)
+        Wait_Milli_Seconds(#100)	
+        mov a, reflow_temp+1
+        add a, #0x99
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+1, a
+        mov a, reflow_temp+1
+        jnz INC_reflow_temp_done
+        mov a, reflow_temp+0
+        add a, #0x99
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+0, a
+        mov a, reflow_temp+1
+        INC_reflow_temp_done:
+        
+        ljmp loop_hold_dec
+
+    DEC_reflow_temp_done2:
+   
+
     ret
 second_page:
     Set_Cursor(1, 1)
@@ -539,6 +635,12 @@ MainProgram:
         mov min, #0x00
         mov state_lcd, #0
         clr TR2_flag
+        mov reflow_temp+0, #0x01
+        mov reflow_temp+1, #0x50
+        clr tt_reflow_flag
+
+        
+
 
     Forever: 
      
@@ -621,71 +723,3 @@ MainProgram:
         ;------------------------------------------;
 END
  
-        mov a, state_lcd
-
-         home_state:
-            cjne a, #0, soak_reflow_state
-;            PushButton(start,continue3)
-;            cpl TR2
-;            jb TR2, set_flag_TR2 ; look if the timer was on or off
-;            ljmp continue4
-;            set_flag_TR2:
-;            setb TR2_flag 
-;            continue4:           
-
-            ;lcall Reset_timer 
-;           continue3:
-            PushButton(set_BUTTON,done_home2)   
-            mov state_lcd, #1
-            ljmp done_home
-            done_home2:
-            lcall home_page
-            done_home:
-            ljmp Forever           
-
-
-        soak_reflow_state:
-            cjne a, #1, setup_soak
-            lcall second_page
-          ;  Wait_Milli_Seconds(#50)
-            lcall sec_counter ; prevent the timer to go over 60
-            lcall min_counter
-            PushButton(HOME_BUTTON,next_pushb) ; check if home button is pressed 
-            mov state_lcd, #0
-            next_pushb:
-            PushButton(SETUP_SOAK_Button,next_pushb2) ; check if the the button to setup soak is pressed
-            mov state_lcd, #2
-            next_pushb2:
-            PushButton(Button_min,done_soak) ; check if the buttion to setup the reflow was pressed 
-            mov state_lcd, #3
-            done_soak:
-           ljmp Forever
-        
-        setup_soak:
-            cjne a, #2, setup_reflow
-            lcall setup_reflow_page
-          ;  Wait_Milli_Seconds(#50)
-            lcall sec_counter ; prevent the timer to go over 60
-            lcall min_counter
-            PushButton(HOME_BUTTON,done_setup_soak) ; check if home button is pressed 
-            mov state_lcd, #0
-            done_setup_soak:
-            ljmp Forever
-        
-        setup_reflow:
-            cjne a, #3, FDP
-            ljmp FDP2
-            FDP:
-            ljmp home_state
-            FDP2:
-            Set_Cursor(1, 1)
-            Send_Constant_String(#test2)
-            Set_Cursor(2, 1)
-            Send_Constant_String(#test2)
-            lcall sec_counter ; prevent the timer to go over 60
-            lcall min_counter
-            PushButton(HOME_BUTTON,done_setup_reflow) ; check if home button is pressed 
-            mov state_lcd, #0
-            done_setup_reflow:
-            ljmp Forever
-END
