@@ -3,334 +3,411 @@
 ; an ISR for timer 0; and c) in the 'main' loop it displays the variable
 ; incremented/decremented using the ISR for timer 2 on the LCD.  Also resets it to 
 ; zero if the 'CLEAR' pushbutton connected to P1.7 is pressed.
-$NOLIST
-$MOD9351
-$LIST
+; Start/Constants
+    $NOLIST
+    $MOD9351
+    $LIST
 
-CLK           EQU 7373000  ; Microcontroller system crystal frequency in Hz
-TIMER0_RATE   EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
-TIMER0_RELOAD EQU ((65536-(CLK/(2*TIMER0_RATE))))
-TIMER1_RATE   EQU 100     ; 100Hz, for a timer tick of 10ms
-TIMER1_RELOAD EQU ((65536-(CLK/(2*TIMER1_RATE))))
-
-CLEAR         equ P1.7
-SOUND_OUT     equ P2.7
-UPDOWN        equ P2.4
-
-CCU_RATE    EQU 11025     ; 22050Hz is the sampling rate of the wav file we are playing
-CCU_RELOAD  EQU ((65536-((CLK/(2*CCU_RATE)))))
-BAUD        EQU 115200
-BRVAL       EQU ((CLK/BAUD)-16)
-
-FLASH_CE    EQU P2.4
-SOUND       EQU P2.7
-
-; Commands supported by the SPI flash memory according to the datasheet
-WRITE_ENABLE     EQU 0x06  ; Address:0 Dummy:0 Num:0
-WRITE_DISABLE    EQU 0x04  ; Address:0 Dummy:0 Num:0
-READ_STATUS      EQU 0x05  ; Address:0 Dummy:0 Num:1 to infinite
-READ_BYTES       EQU 0x03  ; Address:3 Dummy:0 Num:1 to infinite
-READ_SILICON_ID  EQU 0xab  ; Address:0 Dummy:3 Num:1 to infinite
-FAST_READ        EQU 0x0b  ; Address:3 Dummy:1 Num:1 to infinite
-WRITE_STATUS     EQU 0x01  ; Address:0 Dummy:0 Num:1
-WRITE_BYTES      EQU 0x02  ; Address:3 Dummy:0 Num:1 to 256
-ERASE_ALL        EQU 0xc7  ; Address:0 Dummy:0 Num:0
-ERASE_BLOCK      EQU 0xd8  ; Address:3 Dummy:0 Num:0
-READ_DEVICE_ID   EQU 0x9f  ; Address:0 Dummy:2 Num:1 to infinite
-
-; Reset vector
-org 0x0000
-    ljmp main
-
-; External interrupt 0 vector (not used in this code)
-org 0x0003
-	reti
-
-; Timer/Counter 0 overflow interrupt vector
-org 0x000B
-	ljmp Timer0_ISR
-
-; External interrupt 1 vector (not used in this code)
-org 0x0013
-	reti
-
-; Timer/Counter 1 overflow interrupt vector
-org 0x001B
-	ljmp Timer1_ISR
-
-; Serial port receive/transmit interrupt vector (not used in this code)
-org 0x0023 
-	reti
-
-org 0x005b ; CCU interrupt vector.  Used in this code to replay the wave file.
-	ljmp CCU_ISR
+    CLK           EQU 7373000  ; Microcontroller system crystal frequency in Hz
+    TIMER0_RATE   EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
+    TIMER0_RELOAD EQU ((65536-(CLK/(2*TIMER0_RATE))))
+    TIMER1_RATE   EQU 100     ; 100Hz, for a timer tick of 10ms
+    TIMER1_RELOAD EQU ((65536-(CLK/(2*TIMER1_RATE))))
 
 
-;                                                        -                     
-;                                                       -  -                    
-;                                                      -    -                   
-;                              leave it at this temp>>-      -                  
-;                                                    -        -                 
-;                                                   -          -                 
-;                                                  -            -               
-;                                                 -              -              
-;                                                -                -             
-;                                               -                  -            
-;                                              -                    -           
-;                                             -    reflow>>cool     -          
-;               -----------------------------    (temperature only)  -         
-;              -     soak (time+temp)                                 -        
-;             -                                                        -       
-;            -                                                          -       
-;          -                                                             -      
-;         -                                                               -     
-;        -                                                                 -    
-;      -                                                                    -    
-;     - ramp to soak (temperature)                                           -   
-;   -                                                                         -   
-;   state 1 ((temp==soak)? ssr_off: ssr_on)
-;          state 2 ((time=soak_time)?(pwm_off):(pwn_on)
-;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
-;                                                        state 4 (cooling ssr_off)
-;                                                                             state 5 (done)
 
-; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
-dseg at 0x30
-Count10ms:    ds 1 ; Used to determine when half second has passed
-BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
-temp_soak: ds 1 ; temp to soak
-time_soak: ds 1 ; time to soak
-temp_refl: ds 1 ; temp of relfow
-time_refl: ds 1 ; time to reflow 
-state: ds 1 ; current state 
-temp: ds 1 ; current temp in degree C
-sec: ds 1 ; current time in seconds 
-product: ds 1; pwm-currsec
-pwm: ds 1 ; 
+    CCU_RATE    EQU 11025     ; 22050Hz is the sampling rate of the wav file we are playing
+    CCU_RELOAD  EQU ((65536-((CLK/(2*CCU_RATE)))))
+    BAUD        EQU 115200
+    BRVAL       EQU ((CLK/BAUD)-16)
 
-;;; timer
-w:             ds 3 ; 24-bit play counter.  Decremented in CCU ISR.
-minutes:       ds 1
-seconds:       ds 1
-T2S_FSM_state: ds 1
-Count5ms:      ds 1
-five_sec_flag:  ds 1
 
-BSEG
-T2S_FSM_start: dbit 1
-seconds_flag:  dbit 1
 
-;_ _ _ _ | _ _ _ _ _ _
-;
-;pwm = 40 (say)
-;then output will be 100 
-;_________
-;         |
-;         |_____________
-; where period is 1 second 
-; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
-; instructions with these variables.  This is how you define a 1-bit variable:
-bseg
-half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
+    ; Commands supported by the SPI flash memory according to the datasheet
+    WRITE_ENABLE     EQU 0x06  ; Address:0 Dummy:0 Num:0
+    WRITE_DISABLE    EQU 0x04  ; Address:0 Dummy:0 Num:0
+    READ_STATUS      EQU 0x05  ; Address:0 Dummy:0 Num:1 to infinite
+    READ_BYTES       EQU 0x03  ; Address:3 Dummy:0 Num:1 to infinite
+    READ_SILICON_ID  EQU 0xab  ; Address:0 Dummy:3 Num:1 to infinite
+    FAST_READ        EQU 0x0b  ; Address:3 Dummy:1 Num:1 to infinite
+    WRITE_STATUS     EQU 0x01  ; Address:0 Dummy:0 Num:1
+    WRITE_BYTES      EQU 0x02  ; Address:3 Dummy:0 Num:1 to 256
+    ERASE_ALL        EQU 0xc7  ; Address:0 Dummy:0 Num:0
+    ERASE_BLOCK      EQU 0xd8  ; Address:3 Dummy:0 Num:0
+    READ_DEVICE_ID   EQU 0x9f  ; Address:0 Dummy:2 Num:1 to infinite
+;Vectors
+    ; Reset vector
+    org 0x0000
+        ljmp main
 
-cseg
-; These 'equ' must match the wiring between the microcontroller and the LCD!
-LCD_RS equ P0.5
-LCD_RW equ P0.6
-LCD_E  equ P0.7
-LCD_D4 equ P1.2
-LCD_D5 equ P1.3
-LCD_D6 equ P1.4
-LCD_D7 equ P1.6
-$NOLIST
-$include(LCD_4bit_LPC9351.inc) ; A library of LCD related functions and utility macros
-$LIST
+    ; External interrupt 0 vector (not used in this code)
+    org 0x0003
+        reti
 
-;                     1234567890123456    <- This helps determine the location of the counter
-Initial_Message:  db 'BCD_counter: xx ', 0
+    ; Timer/Counter 0 overflow interrupt vector
+    org 0x000B
+        ljmp Timer0_ISR
 
-;---------------------------------;
-; Routine to initialize the ISR   ;
-; for timer 0                     ;
-;---------------------------------;
-Timer0_Init:
-	mov a, TMOD
-	anl a, #0xf0 ; Clear the bits for timer 0
-	orl a, #0x01 ; Configure timer 0 as 16-timer
-	mov TMOD, a
-	mov TH0, #high(TIMER0_RELOAD)
-	mov TL0, #low(TIMER0_RELOAD)
-	; Enable the timer and interrupts
-    setb ET0  ; Enable timer 0 interrupt
-    setb TR0  ; Start timer 0
-	ret
+    ; External interrupt 1 vector (not used in this code)
+    org 0x0013
+        reti
 
-;---------------------------------;
-; ISR for timer 0.  Set to execute;
-; every 1/4096Hz to generate a    ;
-; 2048 Hz square wave at pin P3.7 ;
-;---------------------------------;
-Timer0_ISR:
-	mov TH0, #high(TIMER0_RELOAD)
-	mov TL0, #low(TIMER0_RELOAD)
-	cpl SOUND_OUT ; Connect speaker to this pin
-	reti
+    ; Timer/Counter 1 overflow interrupt vector
+    org 0x001B
+        ljmp Timer1_ISR
 
-;---------------------------------;
-; Routine to initialize the ISR   ;
-; for timer 1                     ;
-;---------------------------------;
-Timer1_Init:
-	mov a, TMOD
-	anl a, #0x0f ; Clear the bits for timer 1
-	orl a, #0x10 ; Configure timer 1 as 16-timer
-	mov TMOD, a
-	mov TH1, #high(TIMER1_RELOAD)
-	mov TL1, #low(TIMER1_RELOAD)
-	; Enable the timer and interrupts
-    setb ET1  ; Enable timer 1 interrupt
-    setb TR1  ; Start timer 1
-	ret
+    ; Serial port receive/transmit interrupt vector (not used in this code)
+    org 0x0023 
+        reti
 
-;---------------------------------;
-; ISR for timer 1                 ;
-;---------------------------------;
-Timer1_ISR:
-	mov TH1, #high(TIMER1_RELOAD)
-	mov TL1, #low(TIMER1_RELOAD)
-	cpl P2.6 ; To check the interrupt rate with oscilloscope. It must be precisely a 10 ms pulse.
-	
-	; The two registers used in the ISR must be saved in the stack
-	push acc
-	push psw
-	
-	; Increment the 8-bit 10-mili-second counter
-	inc Count10ms
+    org 0x005b ; CCU interrupt vector.  Used in this code to replay the wave file.
+        ljmp CCU_ISR
 
-Inc_Done:
-	mov a, Count10ms
-	subb a, pwm ; if pwm greater than a pwm is on else off
-	da a
-	mov a, product
-    jnc off_segment
-    setb p0.1
-    clr c
-    sjmp pass
-    off_segment:
-    clr p0.1
-    clr c
-    sjmp pass
 
-    ; Check if 1 second has passed
-    pass:
+    ;                                                        -                     
+    ;                                                       -  -                    
+    ;                                                      -    -                   
+    ;                              leave it at this temp>>-      -                  
+    ;                                                    -        -                 
+    ;                                                   -          -                 
+    ;                                                  -            -               
+    ;                                                 -              -              
+    ;                                                -                -             
+    ;                                               -                  -            
+    ;                                              -                    -           
+    ;                                             -    reflow>>cool     -          
+    ;               -----------------------------    (temperature only)  -         
+    ;              -     soak (time+temp)                                 -        
+    ;             -                                                        -       
+    ;            -                                                          -       
+    ;          -                                                             -      
+    ;         -                                                               -     
+    ;        -                                                                 -    
+    ;      -                                                                    -    
+    ;     - ramp to soak (temperature)                                           -   
+    ;   -                                                                         -   
+    ;   state 1 ((temp==soak)? ssr_off: ssr_on)
+    ;          state 2 ((time=soak_time)?(pwm_off):(pwn_on)
+    ;                                           state 3 ((temp==soak)? ssr_off: ssr_on)
+    ;                                                        state 4 (cooling ssr_off)
+    ;                                                                             state 5 (done)
 
-	; Check if half second has passed
-	mov a, Count10ms
-	cjne a, #200, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
-	;----------------------------
-	inc sec ; one second has passed
-    mov a,sec
-    da a
-    mov sec,a
+    ; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
+;Variables(dseg) 
+    dseg at 0x30
 
-    inc five_sec_flag ; one second has passed
-    mov a,five_sec_flag
-    da a
-    mov five_sec_flag,a
+    Result:    ds 4
+    x:         ds 4
+    y:         ds 4
+    bcd:       ds 5
+    ;FSM varialbles
+    temp_soak: ds 1 ; temp to soak
+    time_soak: ds 1 ; time to soak
+    temp_refl: ds 1 ; temp of relfow
+    time_refl: ds 1 ; time to reflow 
+    state: ds 1 ; current state 
+    state_lcd: ds 1
+    temp: ds 1 ; current temp in degree C
+    sec: ds 1 ; current time in seconds 
+    product: ds 1; pwm-currsec
+    pwm: ds 1 ; 
 
-    mov a,sec
-    mov minutes, #0
-    mov seconds, acc
+    ;Timer variables
+    Count1ms:     ds 2 ; Used to determine when half second has passed
+    reflow_temp:  ds 2
+    soak_temp:    ds 2
+    reflow_temp_var: ds 1
+    BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
+    hour:         ds 1
+    reflow_sec:   ds 1
+    reflow_min:   ds 1
+    soak_sec:     ds 1
+    soak_min:     ds 1
+    Count10ms:    ds 1 ; Used to determine when half second has passed
+    w:             ds 3 ; 24-bit play counter.  Decremented in CCU ISR.
+    minutes:       ds 1
+    seconds:       ds 1
+    T2S_FSM_state: ds 1
+    Count5ms:      ds 1
+    five_sec_flag:  ds 1
 
+;flags(bseg)
+    BSEG
+    T2S_FSM_start:     dbit 1
+    seconds_flag:      dbit 1
+    mf:                dbit 1
+    half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
+    AMPM_flag:         dbit 1
+    alarm_AMPM_flag:   dbit 1
+    on_off_flag:       dbit 1 ; 1 is on
+    alarm_buzzer_flag: dbit 1
+    TR1_flag:          dbit 1
+    tt_reflow_flag:    dbit 1
+    tt_flag_soak:      dbit 1
+
+    ;_ _ _ _ | _ _ _ _ _ _
+    ;
+    ;pwm = 40 (say)
+    ;then output will be 100 
+    ;_________
+    ;         |
+    ;         |_____________
+    ; where period is 1 second 
+    ; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
+    ; instructions with these variables.  This is how you define a 1-bit variable:
+
+;Pin config(cseg)
+
+    cseg
+    ; These 'equ' must match the wiring between the microcontroller and the LCD!
+    LCD_RS equ P0.5
+    LCD_RW equ P0.6
+    LCD_E  equ P0.7
+    LCD_D4 equ P1.2
+    LCD_D5 equ P1.3
+    LCD_D6 equ P1.4
+    LCD_D7 equ P1.6
+
+    CLEAR         equ P3.0
+ ;   SOUND_OUT     equ P2.7
+ ;   UPDOWN        equ P2.4
+
+    FLASH_CE    EQU P2.4
+    SOUND       EQU P2.7
     
-    ;----------------------------
-	; 500 milliseconds have passed.  Set a flag so the main program knows
-	setb half_seconds_flag ; Let the main program know half second had passed
-	cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
-	; Reset to zero the 10-milli-seconds counter, it is a 8-bit variable
-	mov Count10ms, #0x0
-	; Increment the BCD counter
-	mov a, BCD_counter
-	jnb UPDOWN, Timer1_ISR_decrement
-	add a, #0x01
-	sjmp Timer1_ISR_da
-Timer1_ISR_decrement:
-	add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-Timer1_ISR_da:
-	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov BCD_counter, a
-	
-Timer1_ISR_done:
-	pop psw
-	pop acc
-	reti
+   ; SETUP_SOAK_Button equ  P2.4
+    set_BUTTON        equ  P2.6
+   ; Button_min    equ  P2.6
+   ; HOME_BUTTON   equ  P2.7
+
+
+ ;start         equ P0.7
+
+;include files
+    $NOLIST
+    $include(math32.inc)
+    $include(LCD_4bit_LPC9351.inc) ; A library of LCD related functions and utility macros
+    $LIST
+;Strings
+  ;                       1234567890123456
+   ;General
+    Newline:          db   '\r', '\n', 0
+    Space:            db   '      ','\r', '\n', 0
+    nothing:          db '                ',0      
+    test2:            db '      Test2     ',0
+    hot:			  db '      HOT       ', 0
+    dots:             db ':',0
+    Initial_Message:  db 'BCD_counter: xx ', 0
+   ;Home page
+    Temp0:            db 'Temp:xxxC       ', 0
+    Time:             db 'Time xx:xx SET  ', 0
+   ;Second Page
+    soak_reflw:       db '  SOAK  REFLOW  ', 0
+   ;Reflow Setup
+    reflow_setup:     db 'Temp',0
+    reflow_setup4:    db '*REFLOW*',0
+    reflow_setup2:    db 'Time',0
+    reflow_setup3:    db 'HOME',0
+   ;Soak Setup
+    soak_setup0:      db 'Temp',0
+    soak_setup1:      db ' *SOAK*',0
+    soak_setup2:      db 'Time',0
+    soak_setup3:      db 'HOME',0
+
+;------ISR-------;
+    ;---------------------------------;
+    ; Routine to initialize the ISR   ;
+    ; for timer 0                     ;
+    ;---------------------------------;
+    Timer0_Init:
+        mov a, TMOD
+        anl a, #0xf0 ; Clear the bits for timer 0
+        orl a, #0x01 ; Configure timer 0 as 16-timer
+        mov TMOD, a
+        mov TH0, #high(TIMER0_RELOAD)
+        mov TL0, #low(TIMER0_RELOAD)
+        ; Enable the timer and interrupts
+        setb ET0  ; Enable timer 0 interrupt
+        setb TR0  ; Start timer 0
+        ret
+
+    ;---------------------------------;
+    ; ISR for timer 0.  Set to execute;
+    ; every 1/4096Hz to generate a    ;
+    ; 2048 Hz square wave at pin P3.7 ;
+    ;---------------------------------;
+    Timer0_ISR:
+        mov TH0, #high(TIMER0_RELOAD)
+        mov TL0, #low(TIMER0_RELOAD)
+    ;	cpl SOUND_OUT ; Connect speaker to this pin
+        reti
+
+    ;---------------------------------;
+    ; Routine to initialize the ISR   ;
+    ; for timer 1                     ;
+    ;---------------------------------;
+    Timer1_Init:
+        mov a, TMOD
+        anl a, #0x0f ; Clear the bits for timer 1
+        orl a, #0x10 ; Configure timer 1 as 16-timer
+        mov TMOD, a
+        mov TH1, #high(TIMER1_RELOAD)
+        mov TL1, #low(TIMER1_RELOAD)
+        ; Enable the timer and interrupts
+        setb ET1  ; Enable timer 1 interrupt
+        setb TR1  ; Start timer 1
+        ret
+
+    ;---------------------------------;
+    ; ISR for timer 1                 ;
+    ;---------------------------------;
+    Timer1_ISR:
+        mov TH1, #high(TIMER1_RELOAD)
+        mov TL1, #low(TIMER1_RELOAD)
+        cpl P2.6 ; To check the interrupt rate with oscilloscope. It must be precisely a 10 ms pulse.
+        
+        ; The two registers used in the ISR must be saved in the stack
+        push acc
+        push psw
+        
+        
+        ; Increment the 8-bit 10-mili-second counter
+        inc Count10ms
+        ; Increment the 16-bit one mili second counter
+
+
+    Inc_Done:
+        mov a, Count10ms
+        subb a, pwm ; if pwm greater than a pwm is on else off
+        da a
+       ; mov a, product
+        jnc off_segment
+        setb p0.1
+        clr c
+        sjmp pass
+        off_segment:
+        clr p0.1
+        clr c
+        sjmp pass
+
+        ; Check if 1 second has passed
+        pass:
+
+        ; Check if half second has passed
+        mov a, Count10ms
+        cjne a, #200, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
+        ;----------------------------
+        inc sec ; one second has passed
+        mov a,sec
+        da a
+        mov sec,a
+
+        inc five_sec_flag ; one second has passed
+        mov a,five_sec_flag
+        da a
+        mov five_sec_flag,a
+
+        mov a,sec
+        mov minutes, #0
+        mov seconds, acc
+
+        
+        ;----------------------------
+        ; 500 milliseconds have passed.  Set a flag so the main program knows
+        setb half_seconds_flag ; Let the main program know half second had passed
+        cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
+        ; Reset to zero the 10-milli-seconds counter, it is a 8-bit variable
+        mov Count10ms, #0x0
+   ;     mov Count1ms, #0x00
+        ; Increment the BCD counter
+        mov a, BCD_counter
+    ;	jnb UPDOWN, Timer1_ISR_decrement
+        add a, #0x01
+    ;	sjmp Timer1_ISR_da
+    ;Timer1_ISR_decrement:
+        ;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+    Timer1_ISR_da:
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov BCD_counter, a
+        
+    Timer1_ISR_done:
+        pop psw
+        pop acc
+        reti
 
 
 
-timee:  db 'time', 0
-statee:  db 'state', 0
+    timee:  db 'time', 0
+    statee:  db 'state', 0
 
 
-;------------------------------
-;---------------------------------;
-; Routine to initialize the CCU.  ;
-; We are using the CCU timer in a ;
-; manner similar to the timer 2   ;
-; available in other 8051s        ;
-;---------------------------------;
-CCU_Init:
-	mov TH2, #high(CCU_RELOAD)
-	mov TL2, #low(CCU_RELOAD)
-	mov TOR2H, #high(CCU_RELOAD)
-	mov TOR2L, #low(CCU_RELOAD)
-	mov TCR21, #10000000b ; Latch the reload value
-	mov TICR2, #10000000b ; Enable CCU Timer Overflow Interrupt
-	setb ECCU ; Enable CCU interrupt
-	setb TMOD20 ; Start CCU timer
-	ret
+    ;------------------------------
+    ;---------------------------------;
+    ; Routine to initialize the CCU.  ;
+    ; We are using the CCU timer in a ;
+    ; manner similar to the timer 2   ;
+    ; available in other 8051s        ;
+    ;---------------------------------;
+    CCU_Init:
+        mov TH2, #high(CCU_RELOAD)
+        mov TL2, #low(CCU_RELOAD)
+        mov TOR2H, #high(CCU_RELOAD)
+        mov TOR2L, #low(CCU_RELOAD)
+        mov TCR21, #10000000b ; Latch the reload value
+        mov TICR2, #10000000b ; Enable CCU Timer Overflow Interrupt
+        setb ECCU ; Enable CCU interrupt
+        setb TMOD20 ; Start CCU timer
+        ret
 
-;---------------------------------;
-; ISR for CCU.  Used to playback  ;
-; the WAV file stored in the SPI  ;
-; flash memory.                   ;
-;---------------------------------;
-CCU_ISR:
-	mov TIFR2, #0 ; Clear CCU Timer Overflow Interrupt Flag bit. Actually, it clears all the bits!
-	
-	; The registers used in the ISR must be saved in the stack
-	push acc
-	push psw
-	
-	; Check if the play counter is zero.  If so, stop playing sound.
-	mov a, w+0
-	orl a, w+1
-	orl a, w+2
-	jz stop_playing
-	
-	; Decrement play counter 'w'.  In this implementation 'w' is a 24-bit counter.
-	mov a, #0xff
-	dec w+0
-	cjne a, w+0, keep_playing
-	dec w+1
-	cjne a, w+1, keep_playing
-	dec w+2
-	
-keep_playing:
+    ;---------------------------------;
+    ; ISR for CCU.  Used to playback  ;
+    ; the WAV file stored in the SPI  ;
+    ; flash memory.                   ;
+    ;---------------------------------;
+    CCU_ISR:
+        mov TIFR2, #0 ; Clear CCU Timer Overflow Interrupt Flag bit. Actually, it clears all the bits!
+        
+        ; The registers used in the ISR must be saved in the stack
+        push acc
+        push psw
+        
+        ; Check if the play counter is zero.  If so, stop playing sound.
+        mov a, w+0
+        orl a, w+1
+        orl a, w+2
+        jz stop_playing
+        
+        ;;yolo this is gonna fuck with the speaker
+        ; Increment the 16-bit one mili second counter
+        inc Count1ms+0    ; Increment the low 8-bits first
+        mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
+        jnz Inc_Done
+        inc Count1ms+1
+        ; Decrement play counter 'w'.  In this implementation 'w' is a 24-bit counter.
+        mov a, #0xff
+        dec w+0
+        cjne a, w+0, keep_playing
+        dec w+1
+        cjne a, w+1, keep_playing
+        dec w+2
+        
+    keep_playing:
 
-	lcall Send_SPI ; Read the next byte from the SPI Flash...
-	mov AD1DAT3, a ; and send it to the DAC
-	
-	sjmp CCU_ISR_Done
+        lcall Send_SPI ; Read the next byte from the SPI Flash...
+        mov AD1DAT3, a ; and send it to the DAC
+        
+        sjmp CCU_ISR_Done
 
-stop_playing:
-	clr TMOD20 ; Stop CCU timer
-	setb FLASH_CE  ; Disable SPI Flash
-	clr SOUND ; Turn speaker off
+    stop_playing:
+        clr TMOD20 ; Stop CCU timer
+        setb FLASH_CE  ; Disable SPI Flash
+        clr SOUND ; Turn speaker off
 
-CCU_ISR_Done:	
-	pop psw
-	pop acc
-	reti
+    CCU_ISR_Done:	
+        pop psw
+        pop acc
+        reti
+;----------------;
 
 ;---------------------------------;
 ; Initial configuration of ports. ;
@@ -562,6 +639,15 @@ Play_Sound_Using_Index:
 	setb TMOD20 ; Start playback by enabling CCU timer
 
 	ret
+ ; Send a character using the serial port
+putchar:
+        jnb TI, putchar 
+        ; TI serial interrupt flag is set and when last bit (stop bit) 
+        ; of receiving data byte is received, RI flag get set. IE register
+        ; is used to enable/disable interrupt sources.
+        clr TI
+        mov SBUF, a
+        ret
 
 ;---------------------------------------------------------------------------------;
 ; This is the FSM that plays minutes and seconds after the STOP button is pressed ;
@@ -712,6 +798,493 @@ T2S_FSM_Error: ; If we got to this point, there is an error in the finite state 
 	mov T2S_FSM_state, #0
 	clr T2S_FSM_Start
 	ret
+    
+;WaitHalfSec:
+;        mov R2, #178
+;        Lr3: mov R1, #250
+;        Lr2: mov R0, #166
+;        Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
+;        djnz R1, Lr2 ; 22.51519us*250=5.629ms
+;        djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
+;        ret
+;	
+;blink:
+;        mov SP, #7FH
+;        mov P3M1, #0   ; Configure P3 in bidirectional mode
+;    M0:
+;        cpl P3.7
+;        Set_Cursor(1, 1)
+;        Send_Constant_String(#nothing)
+;        Set_Cursor(2, 1)
+;        Send_Constant_String(#nothing)
+;        Set_Cursor(1, 1)
+;        Send_Constant_String(#hot)
+;        Set_Cursor(2, 1)
+;        Send_Constant_String(#hot)
+;
+;        lcall WaitHalfSec
+;
+;        ret
+;
+;convert:
+;    mov x+0, Result
+;	mov x+1, Result+1 
+;	mov x+2, #0
+;	mov x+3, #0
+;    ret
+;    
+;
+;Display_temp:
+;    Load_y(410)
+;    lcall mul32
+;    Load_y(1023)
+;    lcall div32
+;    Load_y(273)
+;    lcall sub32
+;    lcall hex2bcd
+;    lcall InitSerialPort
+;    Set_Cursor(1, 1)
+;    Send_Constant_String(#Temp0)
+;    lcall SendString
+;    Set_Cursor(1, 5)    
+;    Send_BCD(bcd+1) ; send fisrt 2 digits to putty
+;    Display_BCD(bcd+1); send fisrt 2 digits to lcd
+;    Set_Cursor(1, 7) 
+;    Send_BCD(bcd) ; send last 2 digits to putty
+;    Display_BCD(bcd+0) ; send last 2 digits to lcd
+;    Set_Cursor(1, 5)
+;    Send_Constant_String(#dots)
+;    lcall SendString
+;    mov DPTR, #Newline
+;    lcall SendString
+;    ret
+;config_adc:
+;        clr CE_ADC 
+;        mov R0, #00000001B; Start bit:1 
+;        lcall DO_SPI_G
+;
+;        mov R0, #10000000B; Single ended, read channel 0 
+;        lcall DO_SPI_G 
+;        mov a, R1          ; R1 contains bits 8 and 9 
+;        anl a, #00000011B  ; We need only the two least significant bits 
+;        mov Result+1, a    ; Save result high.
+;
+;        mov R0, #55H; It doesn't matter what we transmit... 
+;        lcall DO_SPI_G 
+;        mov Result, R1     ; R1 contains bits 0 to 7.  Save result low. 
+;        setb CE_ADC 
+;        lcall convert  
+;        mov a, bcd ; move temp to accumulator 
+;        ret
+Reset_timer:
+
+    clr TR1                 ; Stop timer 2
+    clr a
+	mov Count1ms+0, a
+	mov Count1ms+1, a
+	; Now clear the BCD counter and minutes
+	mov BCD_counter, a
+	setb TR1                ; Start timer 2
+
+    ret
+Display_time:
+    Set_Cursor(2, 1)
+    Send_Constant_String(#Time)
+    clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
+	Set_Cursor(2, 9)     ; the place in the LCD where we want the BCD counter value
+	Display_BCD(BCD_counter) ; This macro is also in 'LCD_4bit.inc'
+	Set_Cursor(2, 6)     ; the place in the LCD where we want the BCD counter value
+	Display_BCD(minutes) ; This macro is also in 'LCD_4bit.inc'
+
+    ret
+;;Timer couter 
+    sec_counter: 
+        mov a,BCD_counter
+        cjne a, #0x60, Continue1 ; check if the couter reached 60s
+        mov a, minutes
+        add a, #0x01 ; add one to the minutes
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov minutes, a
+        lcall Reset_timer
+	    Continue1:
+        ret
+    min_counter:
+		mov a,minutes
+		cjne a, #0x60, Continue2
+		clr TR1                 ; Stop timer 2
+		clr a                   
+		mov Count1ms+0, a
+		mov Count1ms+1, a       ; Now clear the BCD counter
+		mov minutes, a              ; Reset minutes
+        setb TR1                ; Start timer 2
+
+		Continue2:
+        ret
+home_page:
+    ;--------Timer----------;
+    jnb half_seconds_flag, Temp_sensor
+    lcall sec_counter
+    lcall min_counter
+    lcall Display_time
+    ;-----------------------;
+            
+;    ;-----TEMP SENSOR-------;
+    Temp_sensor:
+;    lcall config_adc
+;    lcall Display_temp
+;    lcall  WaitHalfSec 
+;    ;-----------------------;
+    ret
+;
+;setup_reflow_page:
+;    PushButton(set_BUTTON, continue9)
+;    cpl tt_reflow_flag
+;    continue9:
+;
+;    jb tt_reflow_flag, jump1
+;    ;jnb tt_reflow_flag, jump1
+;    lcall INC_DEC_Reflow_time
+;    ljmp display_reflow_page
+;    jump1:
+;    lcall INC_DEC_Reflow_temp
+;
+;
+;    display_reflow_page:
+;    Set_Cursor(1, 5)
+;    Display_BCD(reflow_temp+0)
+;    Set_Cursor(1, 7)
+;    Display_BCD(reflow_temp+1)
+;       
+;    
+;    Set_Cursor(1, 1)
+;    Send_Constant_String(#reflow_setup)
+;    Set_Cursor(1, 9)
+;    Send_Constant_String(#reflow_setup4)
+;
+;    Set_Cursor(2, 1)
+;    Send_Constant_String(#reflow_setup2)
+;    Set_Cursor(2, 8)
+;    Send_Constant_String(#dots)
+;    Set_Cursor(2, 12)
+;    Send_Constant_String(#reflow_setup3)
+;    Set_Cursor(2, 9)
+;    Display_BCD(reflow_sec)
+;    Set_Cursor(2, 6)
+;    Display_BCD(reflow_min)
+;
+;    ret
+;    INC_DEC_Reflow_time:
+;
+;        PushButton(SETUP_SOAK_Button,check_decrement) ; setup soak is also used to increment 
+;
+;        mov a, reflow_sec
+;        cjne a, #0x59, add_reflow_sec
+;        mov a, reflow_min
+;        add a, #0x01
+;        da a
+;        mov reflow_min, a
+;        clr a 
+;        ljmp Continue5
+;        add_reflow_sec:
+;        add a, #0x01
+;        da a ; Decimal adjust instruction.  Check datasheet for more details!
+;        Continue5:
+;        mov reflow_sec, a
+;
+;        check_decrement:
+;        PushButton(Button_min, continue8)
+;        mov a, reflow_sec
+;        cjne a, #0x00, sub_reflow_sec
+;        clr a 
+;        ljmp Continue6
+;        sub_reflow_sec:
+;        add a, #0x99 ; add 99 reduces 1
+;        da a ; Decimal adjust instruction.  Check datasheet for more details!
+;        Continue6:
+;        mov reflow_sec, a
+;        continue8:
+;        ret
+;    INC_DEC_Reflow_temp:
+;        ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
+;
+;            jb SETUP_SOAK_Button, check_decrement2  
+;                Wait_Milli_Seconds(#50)	
+;            jb SETUP_SOAK_Button, check_decrement2  
+;            loop_hold_inc:
+;
+;            jnb SETUP_SOAK_Button, jump2
+;            Wait_Milli_Seconds(#100)
+;            jnb SETUP_SOAK_Button, jump2
+;            ljmp hold_done
+;            jump2:
+;            Set_Cursor(1, 5)
+;            Display_BCD(reflow_temp+0)
+;            Set_Cursor(1, 7)
+;            Display_BCD(reflow_temp+1)
+;            Wait_Milli_Seconds(#100)	
+;            mov a, reflow_temp+1
+;            add a, #0x01
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov reflow_temp+1, a
+;            mov a, reflow_temp+1
+;            jnz INC_reflow_temp_done2
+;            mov a, reflow_temp+0
+;            add a, #0x01
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov reflow_temp+0, a
+;            mov a, reflow_temp+1
+;            INC_reflow_temp_done2:
+;            
+;            ljmp loop_hold_inc
+;        hold_done:
+;        
+;
+;
+;        check_decrement2:
+;            jb Button_min, DEC_reflow_temp_done2  
+;                Wait_Milli_Seconds(#50)	
+;            jb Button_min, DEC_reflow_temp_done2  
+;            loop_hold_dec:
+;
+;            jnb Button_min, jump3
+;            Wait_Milli_Seconds(#100)
+;            jnb Button_min, jump3
+;            ljmp DEC_reflow_temp_done2
+;            jump3:
+;            Set_Cursor(1, 5)
+;            Display_BCD(reflow_temp+0)
+;            Set_Cursor(1, 7)
+;            Display_BCD(reflow_temp+1)
+;            Wait_Milli_Seconds(#100)	
+;            mov a, reflow_temp+1
+;            add a, #0x99
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov reflow_temp+1, a
+;            mov a, reflow_temp+1
+;            jnz INC_reflow_temp_done
+;            mov a, reflow_temp+0
+;            add a, #0x99
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov reflow_temp+0, a
+;            mov a, reflow_temp+1
+;            INC_reflow_temp_done:
+;            
+;            ljmp loop_hold_dec
+;
+;        DEC_reflow_temp_done2:
+;    
+;
+;    ret
+;setup_soak_page:
+;    PushButton(set_BUTTON, continue11)
+;    cpl tt_flag_soak
+;    continue11:
+;
+;    jb tt_flag_soak, jump4
+;    lcall INC_DEC_soak_time
+;    ljmp display_soak_page
+;    jump4:
+;    lcall INC_DEC_soak_temp
+;
+;
+;    display_soak_page:
+;    Set_Cursor(1, 5)
+;    Display_BCD(soak_temp+0)
+;    Set_Cursor(1, 7)
+;    Display_BCD(soak_temp+1)
+;       
+;    
+;    Set_Cursor(1, 1)
+;    Send_Constant_String(#soak_setup0)
+;    Set_Cursor(1, 9)
+;    Send_Constant_String(#soak_setup1)
+;
+;    Set_Cursor(2, 1)
+;    Send_Constant_String(#soak_setup2)
+;    Set_Cursor(2, 8)
+;    Send_Constant_String(#dots)
+;    Set_Cursor(2, 12)
+;    Send_Constant_String(#soak_setup3)
+;    Set_Cursor(2, 9)
+;    Display_BCD(soak_sec)
+;    Set_Cursor(2, 6)
+;    Display_BCD(soak_min)
+;ret
+;    INC_DEC_soak_time:
+;    
+;        PushButton(SETUP_SOAK_Button,check_decrement_soak) ; setup soak is also used to increment 
+;
+;        mov a, soak_sec
+;        cjne a, #0x59, add_soak_sec
+;        mov a, soak_min
+;        add a, #0x01
+;        da a
+;        mov soak_min, a
+;        clr a 
+;        ljmp Continue12
+;        add_soak_sec:
+;        add a, #0x01
+;        da a ; Decimal adjust instruction.  Check datasheet for more details!
+;        Continue12:
+;        mov soak_sec, a
+;
+;        check_decrement_soak:
+;        PushButton(Button_min, continue13)
+;        mov a, soak_sec
+;        cjne a, #0x00, sub_soak_sec
+;        clr a 
+;        ljmp Continue14
+;        sub_soak_sec:
+;        add a, #0x99 ; add 99 reduces 1
+;        da a ; Decimal adjust instruction.  Check datasheet for more details!
+;        Continue14:
+;        mov soak_sec, a
+;        continue13:
+;        
+;        ret
+;    INC_DEC_soak_temp:
+;        
+;            jb SETUP_SOAK_Button, check_decrement2_soak  
+;                Wait_Milli_Seconds(#50)	
+;            jb SETUP_SOAK_Button, check_decrement2_soak  
+;            loop_hold_inc_soak:
+;
+;            jnb SETUP_SOAK_Button, jump6
+;            Wait_Milli_Seconds(#100)
+;            jnb SETUP_SOAK_Button, jump6
+;            ljmp hold_done_soak
+;            jump6:
+;            Set_Cursor(1, 5)
+;            Display_BCD(soak_temp+0)
+;            Set_Cursor(1, 7)
+;            Display_BCD(soak_temp+1)
+;            Wait_Milli_Seconds(#200)	
+;            mov a, soak_temp+1
+;            add a, #0x01
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov soak_temp+1, a
+;            mov a, soak_temp+1
+;            jnz INC_soak_temp_done2
+;            mov a, soak_temp+0
+;            add a, #0x01
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov soak_temp+0, a
+;            mov a, soak_temp+1
+;            INC_soak_temp_done2:
+;            
+;            ljmp loop_hold_inc_soak
+;        hold_done_soak:
+;        
+;
+;
+;        check_decrement2_soak:
+;            jb Button_min, DEC_soak_temp_done2  
+;                Wait_Milli_Seconds(#50)	
+;            jb Button_min, DEC_soak_temp_done2  
+;            loop_hold_dec_soak:
+;
+;            jnb Button_min, jump7
+;            Wait_Milli_Seconds(#100)
+;            jnb Button_min, jump7
+;            ljmp DEC_soak_temp_done2
+;            jump7:
+;            Set_Cursor(1, 5)
+;            Display_BCD(soak_temp+0)
+;            Set_Cursor(1, 7)
+;            Display_BCD(soak_temp+1)
+;            Wait_Milli_Seconds(#100)	
+;            mov a, soak_temp+1
+;            add a, #0x99
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov soak_temp+1, a
+;            mov a, soak_temp+1
+;            jnz INC_soak_temp_done
+;            mov a, soak_temp+0
+;            add a, #0x99
+;            da a ; Decimal adjust instruction.  Check datasheet for more details!
+;            mov soak_temp+0, a
+;            mov a, soak_temp+1
+;            INC_soak_temp_done:
+;            
+;            ljmp loop_hold_dec_soak
+;
+;        DEC_soak_temp_done2:
+;        ret
+;second_page:
+;    Set_Cursor(1, 1)
+;    Send_Constant_String(#soak_reflw)
+;    Set_Cursor(2, 1)
+;    Send_Constant_String(#nothing)
+;    ret
+
+FSM_LCD:
+        mov a, state_lcd
+
+
+        ;----------------STATE 0------------------;
+         home_state:
+            cjne a, #0, soak_reflow_state
+            PushButton(set_BUTTON,done_home2) 
+            ;setb set_flag  
+            mov state_lcd, #1
+            ljmp done_home
+            done_home2:
+            ;clr set_flag
+            lcall home_page
+            done_home:
+            ljmp Forever_done           
+        ;------------------------------------------;
+        
+     ;   ;----------------STATE 1-------------------;
+        soak_reflow_state:
+     ;       cjne a, #1, setup_soak
+     ;       lcall second_page
+     ;     ;  Wait_Milli_Seconds(#50)
+     ;       lcall sec_counter ; prevent the timer to go over 60
+     ;       lcall min_counter
+     ;       PushButton(HOME_BUTTON,next_pushb) ; check if home button is pressed 
+     ;       mov state_lcd, #0
+     ;       next_pushb:
+     ;       PushButton(SETUP_SOAK_Button,next_pushb2) ; check if the the button to setup soak is pressed
+     ;       mov state_lcd, #2
+     ;       next_pushb2:
+     ;       PushButton(Button_min,done_soak) ; check if the buttion to setup the reflow was pressed 
+     ;       mov state_lcd, #3
+     ;       done_soak:
+     ;      ljmp Forever_done 
+     ;   ;------------------------------------------;
+;
+     ;   ;-----------------STATE 2------------------;
+     ;   setup_soak: ; its actually set up reflow Im dumb
+     ;       cjne a, #2, setup_reflow
+     ;       lcall setup_reflow_page
+     ;     ;  Wait_Milli_Seconds(#50)
+     ;       lcall sec_counter ; prevent the timer to go over 60
+     ;       lcall min_counter
+     ;       PushButton(HOME_BUTTON,done_setup_soak) ; check if home button is pressed 
+     ;       mov state_lcd, #0
+     ;       done_setup_soak:
+     ;       ljmp Forever_done 
+     ;   ;------------------------------------------;
+;
+     ;   ;----------------STATE 3-------------------;
+     ;   setup_reflow: ; its actually set up soak Im dumb
+     ;       cjne a, #3, FDP
+     ;       ljmp FDP2
+     ;       FDP:
+     ;       ljmp home_state
+     ;       FDP2:
+     ;       lcall setup_soak_page
+     ;       lcall sec_counter ; prevent the timer to go over 60
+     ;       lcall min_counter
+     ;       PushButton(HOME_BUTTON,done_setup_reflow) ; check if home button is pressed 
+     ;       mov state_lcd, #0
+     ;       done_setup_reflow:
+     ;       ljmp Forever_done 
+     ;   ;------------------------------------------;
+        Forever_done:
+ret
+
 ;------------------------------
 ;---------------------------------;
 ; Main program. Includes hardware ;
@@ -751,12 +1324,16 @@ main:
     mov minutes, #0
 	mov seconds, #0
 
-    lcall LCD_4BIT
+   ; lcall LCD_4BIT
     ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
 	Set_Cursor(1, 1)
     Display_BCD(BCD_counter)
 
     setb half_seconds_flag
+    clr a
+    mov Count1ms+0, a
+    mov Count1ms+1, a    
+
 	mov BCD_counter, #0x00
 	mov pwm , #0
 	mov sec , #0
@@ -764,20 +1341,38 @@ main:
 	mov temp, #150
     mov time_soak, #5
     mov temp_refl, #220
+    mov temp_soak, #5
     mov five_sec_flag,#0
 	; After initialization the program stays in this 'forever' loop
+
+    mov reflow_sec, #0x00
+    mov reflow_min, #0x00
+    mov minutes, #0x00
+    mov state_lcd, #0
+    clr TR1_flag
+    mov reflow_temp+0, #0x01
+    mov reflow_temp+1, #0x50
+    clr tt_reflow_flag
+    mov soak_sec, #0x00
+    mov soak_min, #0x00
+
+    mov soak_temp+0, #0x01
+    mov soak_temp+1, #0x50
+
     
 forever:	
+    lcall FSM_LCD
+
     lcall T2S_FSM
 	; One second has passed, refresh the LCD with new time
-	Set_Cursor(1, 1)
-    Send_Constant_String(#timee)
-    Set_Cursor(1, 5)
-    Display_BCD(sec)
-    Set_Cursor(2, 1)
-    Send_Constant_String(#statee)
-    Set_Cursor(2, 5)
-    Display_BCD(state)
+;	Set_Cursor(1, 1)
+;    Send_Constant_String(#timee)
+;    Set_Cursor(1, 5)
+;    Display_BCD(sec)
+;    Set_Cursor(2, 1)
+;    Send_Constant_String(#statee)
+;    Set_Cursor(2, 5)
+;    Display_BCD(BCD_counter)
 
 
     mov a, five_sec_flag
@@ -796,8 +1391,8 @@ forever:
   state0: 
       cjne a, #0, state1
       mov pwm, #0
-      jb p2.0, state0_done
-      jnb p2.0, $ ;wait for key release
+      jb p3.0, state0_done
+      jnb p3.0, $ ;wait for key release
       mov state, #1
   state0_done:
       ljmp forever
@@ -815,7 +1410,7 @@ forever:
   state1_done:
        ljmp forever
        
-  state2:
+  state2: ;press p3.0 multiple time plz cos it is stuck
       cjne a, #2 , state3
       mov pwm, #20
       mov a, time_soak
