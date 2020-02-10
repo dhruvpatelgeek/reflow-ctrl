@@ -69,6 +69,8 @@
 
     ;Timer variables
     Count1ms:     ds 2 ; Used to determine when half second has passed
+    reflow_temp:  ds 2
+    reflow_temp_var: ds 1
     BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
     min:          ds 1
     hour:         ds 1
@@ -91,6 +93,7 @@
     on_off_flag:       dbit 1 ; 1 is on
     alarm_buzzer_flag: dbit 1
     TR2_flag:          dbit 1
+    tt_reflow_flag:    dbit 1
 
 ;Pins Config (cseg)
     CSEG 
@@ -305,14 +308,14 @@
         pop acc     
         ret 
     
-    WaitHalfSec:
+WaitHalfSec:
         mov R2, #178
-    Lr3: mov R1, #250
-    Lr2: mov R0, #166
-    Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
-    djnz R1, Lr2 ; 22.51519us*250=5.629ms
-    djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
-    ret
+        Lr3: mov R1, #250
+        Lr2: mov R0, #166
+        Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
+        djnz R1, Lr2 ; 22.51519us*250=5.629ms
+        djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
+        ret
 	
 blink:
         mov SP, #7FH
@@ -349,8 +352,10 @@ Strings:
     Time:             db 'Time xx:xx SET  ', 0
     dots:             db ':',0
     soak_reflw:       db '  SOAK  REFLOW  ', 0
-    reflow_setup:     db 'Temp:XXX*REFLOW*',0
-    reflow_setup2:    db 'Time   :   HOME ',0
+    reflow_setup:     db 'Temp',0
+    reflow_setup4:    db '*REFLOW*',0
+    reflow_setup2:    db 'Time',0
+    reflow_setup3:    db 'HOME',0
 
 
 convert:
@@ -462,13 +467,36 @@ home_page:
     ret
 
 setup_reflow_page:
-   ; jnb half_seconds_flag, display_reflow_page
+    PushButton(set_BUTTON, continue9)
+    cpl tt_reflow_flag
+    continue9:
+
+    jb tt_reflow_flag, jump1
+    ;jnb tt_reflow_flag, jump1
     lcall INC_DEC_Reflow_time
+    ljmp display_reflow_page
+    jump1:
+    lcall INC_DEC_Reflow_temp
+
+
     display_reflow_page:
+    Set_Cursor(1, 5)
+    Display_BCD(reflow_temp+0)
+    Set_Cursor(1, 7)
+    Display_BCD(reflow_temp+1)
+       
+    
     Set_Cursor(1, 1)
     Send_Constant_String(#reflow_setup)
+    Set_Cursor(1, 9)
+    Send_Constant_String(#reflow_setup4)
+
     Set_Cursor(2, 1)
     Send_Constant_String(#reflow_setup2)
+    Set_Cursor(2, 8)
+    Send_Constant_String(#dots)
+    Set_Cursor(2, 12)
+    Send_Constant_String(#reflow_setup3)
     Set_Cursor(2, 9)
     Display_BCD(reflow_sec)
     Set_Cursor(2, 6)
@@ -481,10 +509,10 @@ INC_DEC_Reflow_time:
 
     mov a, reflow_sec
     cjne a, #0x59, add_reflow_sec
-  ;  mov a, reflow_min
-   ; add a, #0x01
-   ; da a
-   ; mov reflow_min, a
+    mov a, reflow_min
+    add a, #0x01
+    da a
+    mov reflow_min, a
     clr a 
     ljmp Continue5
     add_reflow_sec:
@@ -497,10 +525,6 @@ INC_DEC_Reflow_time:
     PushButton(Button_min, continue8)
     mov a, reflow_sec
     cjne a, #0x00, sub_reflow_sec
- ;   mov a, reflow_min
-  ;  add a, #0x99
-  ;  da a
-  ;  mov reflow_min, a
     clr a 
     ljmp Continue6
     sub_reflow_sec:
@@ -509,6 +533,77 @@ INC_DEC_Reflow_time:
     Continue6:
     mov reflow_sec, a
     continue8:
+    ret
+INC_DEC_Reflow_temp:
+    ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
+
+        jb SETUP_SOAK_Button, check_decrement2  
+            Wait_Milli_Seconds(#50)	
+        jb SETUP_SOAK_Button, check_decrement2  
+        loop_hold_inc:
+
+		jnb SETUP_SOAK_Button, jump2
+        Wait_Milli_Seconds(#100)
+        jnb SETUP_SOAK_Button, jump2
+        ljmp hold_done
+        jump2:
+        Set_Cursor(1, 5)
+        Display_BCD(reflow_temp+0)
+        Set_Cursor(1, 7)
+        Display_BCD(reflow_temp+1)
+        Wait_Milli_Seconds(#100)	
+        mov a, reflow_temp+1
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+1, a
+        mov a, reflow_temp+1
+        jnz INC_reflow_temp_done2
+        mov a, reflow_temp+0
+        add a, #0x01
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+0, a
+        mov a, reflow_temp+1
+        INC_reflow_temp_done2:
+        
+        ljmp loop_hold_inc
+    hold_done:
+    
+
+
+    check_decrement2:
+        jb Button_min, DEC_reflow_temp_done2  
+            Wait_Milli_Seconds(#50)	
+        jb Button_min, DEC_reflow_temp_done2  
+        loop_hold_dec:
+
+		jnb Button_min, jump3
+        Wait_Milli_Seconds(#100)
+        jnb Button_min, jump3
+        ljmp DEC_reflow_temp_done2
+        jump3:
+        Set_Cursor(1, 5)
+        Display_BCD(reflow_temp+0)
+        Set_Cursor(1, 7)
+        Display_BCD(reflow_temp+1)
+        Wait_Milli_Seconds(#100)	
+        mov a, reflow_temp+1
+        add a, #0x99
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+1, a
+        mov a, reflow_temp+1
+        jnz INC_reflow_temp_done
+        mov a, reflow_temp+0
+        add a, #0x99
+        da a ; Decimal adjust instruction.  Check datasheet for more details!
+        mov reflow_temp+0, a
+        mov a, reflow_temp+1
+        INC_reflow_temp_done:
+        
+        ljmp loop_hold_dec
+
+    DEC_reflow_temp_done2:
+   
+
     ret
 second_page:
     Set_Cursor(1, 1)
@@ -540,6 +635,12 @@ MainProgram:
         mov min, #0x00
         mov state_lcd, #0
         clr TR2_flag
+        mov reflow_temp+0, #0x01
+        mov reflow_temp+1, #0x50
+        clr tt_reflow_flag
+
+        
+
 
     Forever: 
      
