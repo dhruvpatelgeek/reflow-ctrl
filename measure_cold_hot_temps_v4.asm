@@ -10,10 +10,10 @@ BRVAL EQU ((XTAL/BAUD)-16)
 OP_AMP_GAIN EQU 340 ;what is the exact gain?
 
 ;define the connections between the ADC and MCU (P89 & MCP3008)
-CE_ADC    EQU  P2.4   ;SS
-MY_MOSI   EQU  P2.2   ;MOSI
-MY_MISO   EQU  P2.3   ;MISO
-MY_SCLK   EQU  P2.5   ;SPICLK
+CE_ADC    EQU  P1.7;P2.4   ;SS
+MY_MOSI   EQU  P3.1 ;P2.2  ;MOSI
+MY_MISO   EQU  P0.3   ;MISO
+MY_SCLK   EQU  P0.2   ;SPICLK
 
 ;$NOLIST
 ;$include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -180,13 +180,28 @@ new_line:
       DB '\r' ,'\n', 0     
     
 Display_putty:
+	Send_BCD(bcd+4)
+	Send_BCD(bcd+3)
+	Send_BCD(bcd+2)
 	Send_BCD(bcd+1)
 	Send_BCD(bcd+0)
 	ret   
-	
+
+Ports_Init:
+    ; Configure all the ports in bidirectional mode:
+    mov P0M1, #00H
+    mov P0M2, #00H
+    mov P1M1, #00H
+    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1 kohm pull-up resistors if used as outputs!
+    mov P2M1, #00H
+    mov P2M2, #00H
+    mov P3M1, #00H
+    mov P3M2, #00H
+	ret
+
 MainProgram:
     mov SP, #7FH ; Set the stack pointer to the begining of idata
-   
+    lcall Ports_Init
     lcall InitSerialPort
     mov P2M1, #0
     mov P2M2, #0
@@ -240,7 +255,7 @@ forever:
 	load_y(273)
 	lcall sub32 
 	lcall hex2bcd
-	lcall Display_putty
+	;lcall Display_putty
 	
 	mov a, #'\r'
 	lcall putchar
@@ -259,6 +274,18 @@ forever:
 	lcall div32
 	load_y(41)
 	lcall div32 
+
+    load_y(8000)
+    lcall add32
+    load_y(258)
+    lcall div32
+    
+    ;load_y(24)
+    ;lcall add32
+    
+    ;load_y(10)
+    ;lcall div32
+
 	lcall hex2bcd
 	lcall Display_putty
 	
@@ -273,4 +300,3 @@ forever:
 	ljmp Forever
    
 END
-	   
