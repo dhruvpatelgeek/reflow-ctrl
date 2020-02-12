@@ -469,9 +469,10 @@ home_page:
             
     ;-----TEMP SENSOR-------;
     Temp_sensor:
+    jnb half_seconds_flag, Return
     lcall config_adc
     lcall Display_temp
-    lcall  WaitHalfSec 
+    Return:
     ;-----------------------;
     ret
 
