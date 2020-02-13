@@ -993,24 +993,40 @@ WaitHalfSec:
     ;    ret
     ;    
     ;
-;config_adc:
-    ;        clr CE_ADC 
-    ;        mov R0, #00000001B; Start bit:1 
-    ;        lcall DO_SPI_G
-    ;
-    ;        mov R0, #10000000B; Single ended, read channel 0 
-    ;        lcall DO_SPI_G 
-    ;        mov a, R1          ; R1 contains bits 8 and 9 
-    ;        anl a, #00000011B  ; We need only the two least significant bits 
-    ;        mov Result+1, a    ; Save result high.
-    ;
-    ;        mov R0, #55H; It doesn't matter what we transmit... 
-    ;        lcall DO_SPI_G 
-    ;        mov Result, R1     ; R1 contains bits 0 to 7.  Save result low. 
-    ;        setb CE_ADC 
-    ;        lcall convert  
-    ;        mov a, bcd ; move temp to accumulator 
-    ;        ret
+config_adc:
+	;read channel 0 of the ADC and transmitting this info to the MCU
+	clr CE_ADC ;enable device (active low)
+	;transmit the info from channel 0
+	mov R0, #00000001B ;start bit:1
+	lcall DO_SPI_G
+	
+	mov R0, #10000000B ;read channel 0
+	lcall DO_SPI_G
+	mov a, R1          ; R1 contains bits 8 and 9 
+	anl a, #00000011B  ; We need only the two least significant bits
+	mov ch0+1, a    ; Save result high
+	
+	mov R0, #55H   ; It doesn't matter what we transmit... 
+	lcall DO_SPI_G  
+	mov ch0+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
+	setb CE_ADC ;disable device
+	
+	clr CE_ADC ;enable device
+	;transmit from channel 1
+	mov R0, #00000001B ;start bit:1
+	lcall DO_SPI_G
+	
+	mov R0, #10010000B ;read channel 1
+	lcall DO_SPI_G
+	mov a, R1          ; R1 contains bits 8 and 9 
+	anl a, #00000011B  ; We need only the two least significant bits
+	mov ch1+1, a    ; Save result high
+	
+	mov R0, #55H   ; It doesn't matter what we transmit... 
+	lcall DO_SPI_G  
+	mov ch1+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
+	setb CE_ADC ;disable device (active low)
+	ret
 Display_temp:
     ;    Load_y(410)
     ;    lcall mul32
@@ -1020,20 +1036,55 @@ Display_temp:
     ;    lcall sub32
     ;    lcall hex2bcd
     ;    lcall InitSerialPort
+    
+	;convert the voltage from ch0(LM335) to temperature and display in putty - ch0 correspond to the cold jnc temp
+	mov x+0, ch0
+	mov x+1, ch0+1
+	mov x+2, #0
+	mov x+3, #0
+	
+	load_y(410)
+	lcall mul32
+	load_y(1023)
+	lcall div32
+	load_y(273)
+	lcall sub32 
+	lcall hex2bcd
+	;lcall Display_putty
+	
+	;do the same for ch1(output voltage of OP AMP) - ch1 corresponds to the hot jnc temp
+	mov x+0, ch1
+	mov x+1, ch1+1
+	mov x+2, #0
+	mov x+3, #0
+	
+	load_y(1000000)
+	lcall mul32
+	load_y(OP_AMP_GAIN)
+	lcall div32
+	load_y(41)
+	lcall div32 
+
+    load_y(8000)
+    lcall add32
+    load_y(258)
+    lcall div32
+    lcall hex2bcd
+    
         Set_Cursor(1, 1)
         Send_Constant_String(#Temp0)
     ;    lcall SendString
     ;    Set_Cursor(1, 5)    
     ;    Send_BCD(bcd+1) ; send fisrt 2 digits to putty
     ;    Display_BCD(bcd+1); send fisrt 2 digits to lcd
-    ;    Set_Cursor(1, 7) 
-    ;    Send_BCD(bcd) ; send last 2 digits to putty
-    ;    Display_BCD(bcd+0) ; send last 2 digits to lcd
+        Set_Cursor(1, 7) 
+        Send_BCD(bcd) ; send last 2 digits to putty
+        Display_BCD(bcd+0) ; send last 2 digits to lcd
     ;    Set_Cursor(1, 5)
     ;    Send_Constant_String(#dots)
-    ;    lcall SendString
-    ;    mov DPTR, #Newline
-    ;    lcall SendString
+        lcall SendString
+        mov DPTR, #Newline
+        lcall SendString
   ret
 
 Reset_timer:
@@ -1103,9 +1154,9 @@ home_page:
 
     ;-----TEMP SENSOR-------;
     Temp_sensor:
- ;    lcall config_adc
-    lcall Display_temp
- ;    lcall  WaitHalfSec 
+   ;  lcall config_adc
+   ; lcall Display_temp
+  ;   lcall  WaitHalfSec 
  ;    ;-----------------------;
 
 
@@ -1458,15 +1509,18 @@ main:
     mov SP, #0x7F
     lcall Timer0_Init
     lcall Timer1_Init
-    lcall InitSerialPort
 
-    lcall Ports_Init ; Default all pins as bidirectional I/O. See Table 42.
+
     lcall LCD_4BIT
-    lcall Double_Clk
+  ;  lcall Double_Clk
 	lcall InitDAC1 ; Call after 'Ports_Init'
 	lcall CCU_Init
 	lcall Init_SPI
-	
+    ;;;;; TEMP
+	lcall Ports_Init
+    lcall InitSerialPort
+    mov P2M1, #0
+    mov P2M2, #0
 	
 	setb EA ; Enable global interrupts.
 
@@ -1475,15 +1529,7 @@ main:
 	mov T2S_FSM_state, #0
     ; Configure all the ports in bidirectional mode:
 
-    mov P0M1, #00H
-    mov P0M2, #00H
-    mov P1M1, #00H
-    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
-    mov P2M1, #00H
-    mov P2M2, #00H
-    mov P3M1, #00H
-    mov P3M2, #00H
-    
+
     ;mov minutes, #0
 	mov seconds, #0
 

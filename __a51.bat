@@ -1,5 +1,5 @@
 @echo off
 C:
 cd "\Users\pedri\OneDrive\UBC\2 Year\Elec 291\Projet 1\elec_291_prj_1-reflow_ctrl\"
-"C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\CrossIDE\CrossIDE\Call51\Bin\a51.exe" -l "C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\Projet 1\elec_291_prj_1-reflow_ctrl\measure_cold_hot_temps_v4.asm"
-echo Crosside_Action Set_Hex_File C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\Projet 1\elec_291_prj_1-reflow_ctrl\measure_cold_hot_temps_v4.HEX
+"C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\CrossIDE\CrossIDE\Call51\Bin\a51.exe" -l "C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\Projet 1\elec_291_prj_1-reflow_ctrl\dhruv_try.asm"
+echo Crosside_Action Set_Hex_File C:\Users\pedri\OneDrive\UBC\2 Year\Elec 291\Projet 1\elec_291_prj_1-reflow_ctrl\dhruv_try.HEX

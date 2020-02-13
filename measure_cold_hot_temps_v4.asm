@@ -124,7 +124,7 @@ getchar_L1:
     
 ;approximate delay of 1s
 Delay:
-    mov R2, #89*2
+    mov R2, #20
 L4: mov R1, #250
 L5: mov R0, #166
 L6: djnz R0, L6 ; 3 cycles->3*45.21123ns*166=22.51519us
@@ -180,6 +180,9 @@ new_line:
       DB '\r' ,'\n', 0     
     
 Display_putty:
+	Send_BCD(bcd+4)
+	Send_BCD(bcd+3)
+	Send_BCD(bcd+2)
 	Send_BCD(bcd+1)
 	Send_BCD(bcd+0)
 	ret   
@@ -203,9 +206,6 @@ MainProgram:
     mov P2M1, #0
     mov P2M2, #0
 
-pedro_strip_club:
-lcall forever
-ljmp pedro_strip_club
 
 forever:
 	;read channel 0 of the ADC and transmitting this info to the MCU
@@ -264,17 +264,17 @@ forever:
 	mov x+2, #0
 	mov x+3, #0
 	
-	load_y(1000000)
-	lcall mul32
-	load_y(OP_AMP_GAIN)
-	lcall div32
-	load_y(41)
-	lcall div32 
+	;load_y(1000000)
+	;lcall mul32
+	;load_y(OP_AMP_GAIN)
+	;lcall div32
+	;load_y(41)
+	;lcall div32 
 
-    load_y(8000)
-    lcall add32
-    load_y(258)
-    lcall div32
+    ;load_y(8000)
+    ;lcall add32
+    ;load_y(258)
+    ;lcall div32
     
     ;load_y(24)
     ;lcall add32

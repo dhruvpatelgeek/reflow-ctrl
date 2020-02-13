@@ -1412,6 +1412,9 @@ forever:
   ;  pass_quack:
   ;  setb TR1 ; en timer 1.
     
+    Set_Cursor(1, 10)
+    Display_BCD(bcd+0)
+
     mov a, state
   state0: 
       cjne a, #0, state1

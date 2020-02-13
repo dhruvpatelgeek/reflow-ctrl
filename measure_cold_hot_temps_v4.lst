@@ -264,7 +264,7 @@
 0000            263   RTCDATH         XDATA 0FFBFH ; Real-time clock data register high
 0000            264   RTCDATL         XDATA 0FFBEH ; Real-time clock data register low
 0000              2   org 0000H
-0000 020359       3      ljmp MainProgram
+0000 020374       3      ljmp MainProgram
 0003              4      
 0003              5   cseg
 0003              6   ;definitions for clk, baud rate, etc.
@@ -387,7 +387,7 @@
 02CD            124       
 02CD            125   ;approximate delay of 1s
 02CD            126   Delay:
-02CD 7AB2       127       mov R2, #89*2
+02CD 7A14       127       mov R2, #20
 02CF 79FA       128   L4: mov R1, #250
 02D1 78A6       129   L5: mov R0, #166
 02D3 D8FE       130   L6: djnz R0, L6 ; 3 cycles->3*45.21123ns*166=22.51519us
@@ -447,148 +447,142 @@
 032D            181       
 032D            182   Display_putty:
 032D C000       183            push ar0
-032F A841       183            mov r0, bcd+1
+032F A844       183            mov r0, bcd+4
 0331 1202A7     183            lcall ?Send_BCD
 0334 D000       183            pop ar0
 0336 C000       184            push ar0
-0338 A840       184            mov r0, bcd+0
+0338 A843       184            mov r0, bcd+3
 033A 1202A7     184            lcall ?Send_BCD
 033D D000       184            pop ar0
-033F 22         185            ret   
-0340            186   
-0340            187   Ports_Init:
-0340            188       ; Configure all the ports in bidirectional mode:
-0340 758400     189       mov P0M1, #00H
-0343 758500     190       mov P0M2, #00H
-0346 759100     191       mov P1M1, #00H
-0349 759200     192       mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1 kohm pull-up resistors if used as outputs!
-034C 75A400     193       mov P2M1, #00H
-034F 75A500     194       mov P2M2, #00H
-0352 75B100     195       mov P3M1, #00H
-0355 75B200     196       mov P3M2, #00H
-0358 22         197            ret
-0359            198   
-0359            199   MainProgram:
-0359 75817F     200       mov SP, #7FH ; Set the stack pointer to the begining of idata
-035C 120340     201       lcall Ports_Init
-035F 120273     202       lcall InitSerialPort
-0362 75A400     203       mov P2M1, #0
-0365 75A500     204       mov P2M2, #0
-0368            205   
-0368            206   pedro_strip_club:
-0368 12036E     207   lcall forever
-036B 020368     208   ljmp pedro_strip_club
-036E            209   
-036E            210   forever:
-036E            211            ;read channel 0 of the ADC and transmitting this info to the MCU
-036E C297       212            clr CE_ADC ;enable device (active low)
-0370            213            ;transmit the info from channel 0
-0370 7801       214            mov R0, #00000001B ;start bit:1
-0372 12028E     215            lcall DO_SPI_G
-0375            216            
-0375 7880       217            mov R0, #10000000B ;read channel 0
-0377 12028E     218            lcall DO_SPI_G
-037A E9         219            mov a, R1          ; R1 contains bits 8 and 9 
-037B 5403       220            anl a, #00000011B  ; We need only the two least significant bits
-037D F53B       221            mov ch0+1, a    ; Save result high
-037F            222            
-037F 7855       223            mov R0, #55H   ; It doesn't matter what we transmit... 
-0381 12028E     224            lcall DO_SPI_G  
-0384 893A       225            mov ch0+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
-0386 D297       226            setb CE_ADC ;disable device
-0388            227            
-0388 C297       228            clr CE_ADC ;enable device
-038A            229            ;transmit from channel 1
-038A 7801       230            mov R0, #00000001B ;start bit:1
-038C 12028E     231            lcall DO_SPI_G
-038F            232            
-038F 7890       233            mov R0, #10010000B ;read channel 1
-0391 12028E     234            lcall DO_SPI_G
-0394 E9         235            mov a, R1          ; R1 contains bits 8 and 9 
-0395 5403       236            anl a, #00000011B  ; We need only the two least significant bits
-0397 F53D       237            mov ch1+1, a    ; Save result high
-0399            238            
-0399 7855       239            mov R0, #55H   ; It doesn't matter what we transmit... 
-039B 12028E     240            lcall DO_SPI_G  
-039E 893C       241            mov ch1+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
-03A0 D297       242            setb CE_ADC ;disable device (active low)
-03A2            243            
-03A2 1202CD     244            lcall Delay ;about 1s
-03A5            245            
-03A5            246            ;convert the voltage from ch0(LM335) to temperature and display in putty - ch0 correspond to the cold jnc temp
-03A5 853A30     247            mov x+0, ch0
-03A8 853B31     248            mov x+1, ch0+1
-03AB 753200     249            mov x+2, #0
-03AE 753300     250            mov x+3, #0
-03B1            251            
-03B1 75349A     252            mov y+0, #low (410 % 0x10000) 
-03B4 753501     252            mov y+1, #high(410 % 0x10000) 
-03B7 753600     252            mov y+2, #low (410 / 0x10000) 
-03BA 753700     252            mov y+3, #high(410 / 0x10000) 
-03BD 12017D     253            lcall mul32
-03C0 7534FF     254            mov y+0, #low (1023 % 0x10000) 
-03C3 753503     254            mov y+1, #high(1023 % 0x10000) 
-03C6 753600     254            mov y+2, #low (1023 / 0x10000) 
-03C9 753700     254            mov y+3, #high(1023 / 0x10000) 
-03CC 12020A     255            lcall div32
-03CF 753411     256            mov y+0, #low (273 % 0x10000) 
-03D2 753501     256            mov y+1, #high(273 % 0x10000) 
-03D5 753600     256            mov y+2, #low (273 / 0x10000) 
-03D8 753700     256            mov y+3, #high(273 / 0x10000) 
-03DB 1200E9     257            lcall sub32 
-03DE 120003     258            lcall hex2bcd
-03E1            259            ;lcall Display_putty
-03E1            260            
-03E1            261            ;do the same for ch1(output voltage of OP AMP) - ch1 corresponds to the hot jnc temp
-03E1 853C30     262            mov x+0, ch1
-03E4 853D31     263            mov x+1, ch1+1
-03E7 753200     264            mov x+2, #0
-03EA 753300     265            mov x+3, #0
-03ED            266            
-03ED 753440     267            mov y+0, #low (1000000 % 0x10000) 
-03F0 753542     267            mov y+1, #high(1000000 % 0x10000) 
-03F3 75360F     267            mov y+2, #low (1000000 / 0x10000) 
-03F6 753700     267            mov y+3, #high(1000000 / 0x10000) 
-03F9 12017D     268            lcall mul32
-03FC 753454     269            mov y+0, #low (OP_AMP_GAIN % 0x10000) 
-03FF 753501     269            mov y+1, #high(OP_AMP_GAIN % 0x10000) 
-0402 753600     269            mov y+2, #low (OP_AMP_GAIN / 0x10000) 
-0405 753700     269            mov y+3, #high(OP_AMP_GAIN / 0x10000) 
-0408 12020A     270            lcall div32
-040B 753429     271            mov y+0, #low (41 % 0x10000) 
-040E 753500     271            mov y+1, #high(41 % 0x10000) 
-0411 753600     271            mov y+2, #low (41 / 0x10000) 
-0414 753700     271            mov y+3, #high(41 / 0x10000) 
-0417 12020A     272            lcall div32 
-041A            273   
-041A 753440     274            mov y+0, #low (8000 % 0x10000) 
-041D 75351F     274            mov y+1, #high(8000 % 0x10000) 
-0420 753600     274            mov y+2, #low (8000 / 0x10000) 
-0423 753700     274            mov y+3, #high(8000 / 0x10000) 
-0426 1200C8     275       lcall add32
-0429 753402     276            mov y+0, #low (258 % 0x10000) 
-042C 753501     276            mov y+1, #high(258 % 0x10000) 
-042F 753600     276            mov y+2, #low (258 / 0x10000) 
-0432 753700     276            mov y+3, #high(258 / 0x10000) 
-0435 12020A     277       lcall div32
-0438            278       
-0438            279       ;load_y(24)
-0438            280       ;lcall add32
-0438            281       
-0438            282       ;load_y(10)
-0438            283       ;lcall div32
-0438            284   
-0438 120003     285            lcall hex2bcd
-043B 12032D     286            lcall Display_putty
-043E            287            
-043E 740D       288            mov a, #'\r'
-0440 1202BD     289            lcall putchar
-0443 740A       290            mov a, #'\n'
-0445 1202BD     291            lcall putchar
-0448            292            
-0448            293            ;now that we have the cold and hot junction temps in variables ch0 and ch1 respectively, we can add them to get the actual temperature
-0448            294            
-0448            295            
-0448 22         296            ret
-0449            297      
-0449            298   EN
+033F C000       185            push ar0
+0341 A842       185            mov r0, bcd+2
+0343 1202A7     185            lcall ?Send_BCD
+0346 D000       185            pop ar0
+0348 C000       186            push ar0
+034A A841       186            mov r0, bcd+1
+034C 1202A7     186            lcall ?Send_BCD
+034F D000       186            pop ar0
+0351 C000       187            push ar0
+0353 A840       187            mov r0, bcd+0
+0355 1202A7     187            lcall ?Send_BCD
+0358 D000       187            pop ar0
+035A 22         188            ret   
+035B            189   
+035B            190   Ports_Init:
+035B            191       ; Configure all the ports in bidirectional mode:
+035B 758400     192       mov P0M1, #00H
+035E 758500     193       mov P0M2, #00H
+0361 759100     194       mov P1M1, #00H
+0364 759200     195       mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1 kohm pull-up resistors if used as outputs!
+0367 75A400     196       mov P2M1, #00H
+036A 75A500     197       mov P2M2, #00H
+036D 75B100     198       mov P3M1, #00H
+0370 75B200     199       mov P3M2, #00H
+0373 22         200            ret
+0374            201   
+0374            202   MainProgram:
+0374 75817F     203       mov SP, #7FH ; Set the stack pointer to the begining of idata
+0377 12035B     204       lcall Ports_Init
+037A 120273     205       lcall InitSerialPort
+037D 75A400     206       mov P2M1, #0
+0380 75A500     207       mov P2M2, #0
+0383            208   
+0383            209   
+0383            210   forever:
+0383            211            ;read channel 0 of the ADC and transmitting this info to the MCU
+0383 C297       212            clr CE_ADC ;enable device (active low)
+0385            213            ;transmit the info from channel 0
+0385 7801       214            mov R0, #00000001B ;start bit:1
+0387 12028E     215            lcall DO_SPI_G
+038A            216            
+038A 7880       217            mov R0, #10000000B ;read channel 0
+038C 12028E     218            lcall DO_SPI_G
+038F E9         219            mov a, R1          ; R1 contains bits 8 and 9 
+0390 5403       220            anl a, #00000011B  ; We need only the two least significant bits
+0392 F53B       221            mov ch0+1, a    ; Save result high
+0394            222            
+0394 7855       223            mov R0, #55H   ; It doesn't matter what we transmit... 
+0396 12028E     224            lcall DO_SPI_G  
+0399 893A       225            mov ch0+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
+039B D297       226            setb CE_ADC ;disable device
+039D            227            
+039D C297       228            clr CE_ADC ;enable device
+039F            229            ;transmit from channel 1
+039F 7801       230            mov R0, #00000001B ;start bit:1
+03A1 12028E     231            lcall DO_SPI_G
+03A4            232            
+03A4 7890       233            mov R0, #10010000B ;read channel 1
+03A6 12028E     234            lcall DO_SPI_G
+03A9 E9         235            mov a, R1          ; R1 contains bits 8 and 9 
+03AA 5403       236            anl a, #00000011B  ; We need only the two least significant bits
+03AC F53D       237            mov ch1+1, a    ; Save result high
+03AE            238            
+03AE 7855       239            mov R0, #55H   ; It doesn't matter what we transmit... 
+03B0 12028E     240            lcall DO_SPI_G  
+03B3 893C       241            mov ch1+0, R1     ; R1 contains bits 0 to 7.  Save result low. 
+03B5 D297       242            setb CE_ADC ;disable device (active low)
+03B7            243            
+03B7 1202CD     244            lcall Delay ;about 1s
+03BA            245            
+03BA            246            ;convert the voltage from ch0(LM335) to temperature and display in putty - ch0 correspond to the cold jnc temp
+03BA 853A30     247            mov x+0, ch0
+03BD 853B31     248            mov x+1, ch0+1
+03C0 753200     249            mov x+2, #0
+03C3 753300     250            mov x+3, #0
+03C6            251            
+03C6 75349A     252            mov y+0, #low (410 % 0x10000) 
+03C9 753501     252            mov y+1, #high(410 % 0x10000) 
+03CC 753600     252            mov y+2, #low (410 / 0x10000) 
+03CF 753700     252            mov y+3, #high(410 / 0x10000) 
+03D2 12017D     253            lcall mul32
+03D5 7534FF     254            mov y+0, #low (1023 % 0x10000) 
+03D8 753503     254            mov y+1, #high(1023 % 0x10000) 
+03DB 753600     254            mov y+2, #low (1023 / 0x10000) 
+03DE 753700     254            mov y+3, #high(1023 / 0x10000) 
+03E1 12020A     255            lcall div32
+03E4 753411     256            mov y+0, #low (273 % 0x10000) 
+03E7 753501     256            mov y+1, #high(273 % 0x10000) 
+03EA 753600     256            mov y+2, #low (273 / 0x10000) 
+03ED 753700     256            mov y+3, #high(273 / 0x10000) 
+03F0 1200E9     257            lcall sub32 
+03F3 120003     258            lcall hex2bcd
+03F6            259            ;lcall Display_putty
+03F6            260            
+03F6            261            ;do the same for ch1(output voltage of OP AMP) - ch1 corresponds to the hot jnc temp
+03F6 853C30     262            mov x+0, ch1
+03F9 853D31     263            mov x+1, ch1+1
+03FC 753200     264            mov x+2, #0
+03FF 753300     265            mov x+3, #0
+0402            266            
+0402            267            ;load_y(1000000)
+0402            268            ;lcall mul32
+0402            269            ;load_y(OP_AMP_GAIN)
+0402            270            ;lcall div32
+0402            271            ;load_y(41)
+0402            272            ;lcall div32 
+0402            273   
+0402            274       ;load_y(8000)
+0402            275       ;lcall add32
+0402            276       ;load_y(258)
+0402            277       ;lcall div32
+0402            278       
+0402            279       ;load_y(24)
+0402            280       ;lcall add32
+0402            281       
+0402            282       ;load_y(10)
+0402            283       ;lcall div32
+0402            284   
+0402 120003     285            lcall hex2bcd
+0405 12032D     286            lcall Display_putty
+0408            287            
+0408 740D       288            mov a, #'\r'
+040A 1202BD     289            lcall putchar
+040D 740A       290            mov a, #'\n'
+040F 1202BD     291            lcall putchar
+0412            292            
+0412            293            ;now that we have the cold and hot junction temps in variables ch0 and ch1 respectively, we can add them to get the actual temperature
+0412            294            
+0412            295            
+0412 22         296            ret
+0413            297      
+0413            298   EN
