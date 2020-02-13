@@ -203,6 +203,10 @@ MainProgram:
     mov P2M1, #0
     mov P2M2, #0
 
+pedro_strip_club:
+lcall forever
+ljmp pedro_strip_club
+
 forever:
 	;read channel 0 of the ADC and transmitting this info to the MCU
 	clr CE_ADC ;enable device (active low)
@@ -289,6 +293,6 @@ forever:
 	;now that we have the cold and hot junction temps in variables ch0 and ch1 respectively, we can add them to get the actual temperature
 	
 	
-	ljmp Forever
+	ret
    
 END

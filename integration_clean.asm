@@ -1,4 +1,4 @@
-
+;;;;;;;;
 ; Start/Constants
     $NOLIST
     $MOD9351
@@ -16,6 +16,9 @@
     CCU_RELOAD  EQU ((65536-((CLK/(2*CCU_RATE)))))
     BAUD        EQU 115200
     BRVAL       EQU ((CLK/BAUD)-16)
+
+        ;definitions for clk, baud rate, etc.
+    OP_AMP_GAIN EQU 340 ;what is the exact gain?
 
 
 
@@ -92,7 +95,6 @@
 ;Variables(dseg) 
     dseg at 0x30
 
-    bcd:             ds 5
     ;FSM varialbles
     temp_soak:       ds 1 ; temp to soak
     time_soak:       ds 1 ; time to soak
@@ -150,6 +152,7 @@
     tt_flag_soak:      dbit 1
     stop_flag:         dbit 1
     my_flag:           dbit 1
+
 
     ;_ _ _ _ | _ _ _ _ _ _
     ;
@@ -225,6 +228,8 @@
     soak_setup2:      db 'Time',0
     soak_setup3:      db 'HOME',0
 
+    ;Termperature
+    HexAscii: db '0123456789ABCDEF',0
 ;------ISR-------;
     ;---------------------------------;
     ; Routine to initialize the ISR   ;
@@ -634,20 +639,195 @@ LCD_number:
         setb TMOD20 ; Start playback by enabling CCU timer
 
         ret
-    ; Send a character using the serial port
-putchar:
-        jnb TI, putchar 
-        ; TI serial interrupt flag is set and when last bit (stop bit) 
-        ; of receiving data byte is received, RI flag get set. IE register
-        ; is used to enable/disable interrupt sources.
-        clr TI
-        mov SBUF, a
-        ret
+    
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this brace
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this bracee
+;;;;;;/;;;;;;;;----------------------------------- add all the function in this brace
 
+InitSerialPort:
+	;DEBOUNCING??
+	; Since the reset button bounces, we need to wait a bit before
+    ; sending messages, otherwise we risk displaying gibberish!
+    ;mov R1, #222
+    ;mov R0, #166
+    ;djnz R0, $   ; 3 cycles->3*45.21123ns*166=22.51519us
+    ;djnz R1, $-4 ; 22.51519us*222=4.998ms
+    ; Now we can proceed with the configuration
+	
+	mov	BRGCON,#0x00
+	mov	BRGR1,#high(BRVAL)
+	mov	BRGR0,#low(BRVAL)
+	mov	BRGCON,#0x03 ; Turn-on the baud rate generator
+	mov	SCON,#0x52 ; Serial port in mode 1, ren, txrdy, rxempty
+	mov	P1M1,#0x00 ; Enable pins RxD and TXD
+	mov	P1M2,#0x00 ; Enable pins RxD and TXD
+	ret
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;INIT_SPI:     
+;	setb MY_MISO    ; Make MISO an input pin     
+;	clr MY_SCLK     ; For mode (0,0) SCLK is zero     
+;	ret
+;bit-bang SPI
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;; check here for e;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+DO_SPI_G:     
+	push acc     
+	mov R1, #0      ; Received byte stored in R1     
+	mov R2, #8      ; Loop counter (8-bits)
+DO_SPI_G_LOOP:     
+	mov a, R0       ; Byte to write is in R0     
+	rlc a           ; Carry flag has bit to write     
+	mov R0, a     
+	mov MY_MOSI, c 
+	setb MY_SCLK    ; Transmit     
+	mov c, MY_MISO  ; Read received bit     
+	mov a, R1       ; Save received bit in R1    
+	rlc a 
+	mov R1, a     
+	clr MY_SCLK     
+	djnz R2, DO_SPI_G_LOOP     
+	pop acc     
+	ret 
+	
+;;---------------------------------;
+;; Send a BCD number to PuTTY      ;
+;;---------------------------------;
+;Send_BCD mac
+;	push ar0
+;	mov r0, %0
+;	lcall ?Send_BCD
+;	pop ar0
+;endmac
+;
+;?Send_BCD:
+;	push acc
+;	; Write most significant digit
+;	mov a, r0
+;	swap a
+;	anl a, #0fh
+;	orl a, #30h
+;	lcall putchar
+;	; write least significant digit
+;	mov a, r0
+;	anl a, #0fh
+;	orl a, #30h
+;	lcall putchar
+;	pop acc
+;	ret	 
+
+; Send a character using the serial port
+putchar:
+	jbc	TI,putchar_L1
+	sjmp putchar
+putchar_L1:
+	mov	SBUF,a
+	ret
+	
+getchar:
+	jbc	RI,getchar_L1
+	sjmp getchar
+getchar_L1:
+	mov	a,SBUF
+	ret	
+    
+;approximate delay of 1s
+Delay:
+    mov R2, #89*2
+L4: mov R1, #250
+L5: mov R0, #166
+L6: djnz R0, L6 ; 3 cycles->3*45.21123ns*166=22.51519us
+    djnz R1, L5 ; 22.51519us*250=5.629ms
+    djnz R2, L4 ; 5.629ms*89=0.5s (approximately)
+    ret
+    
+
+
+SendTemp:
+	mov dptr, #HexAscii 
+	
+	mov a, bcd+1
+	swap a
+	anl a, #0xf
+	movc a, @a+dptr
+	lcall putchar
+	mov a, bcd+1
+	anl a, #0xf
+	movc a, @a+dptr
+	lcall putchar
+
+	mov a, #'.'
+	lcall putchar
+
+	mov a, bcd+0
+	swap a
+	anl a, #0xf
+	movc a, @a+dptr
+	lcall putchar
+	mov a, bcd+0
+	anl a, #0xf
+	movc a, @a+dptr
+	lcall putchar
+	
+	mov a, #'\r'
+	lcall putchar
+	mov a, #'\n'
+	lcall putchar	
+	ret    
+
+SendString:
+    clr a
+    movc a, @a+dptr
+    jz SendString_L1
+    lcall putchar
+    inc dptr
+    sjmp SendString  
+SendString_L1:
+	ret
+    
+new_line:
+      DB '\r' ,'\n', 0     
+    
+Display_putty:
+	Send_BCD(bcd+1)
+	Send_BCD(bcd+0)
+	ret   
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
 ;---------------------------------------------------------------------------------;
 ; This is the FSM that plays minutes and seconds after the STOP button is pressed ;
 ; The state diagram of this FSM is available as 'Stop_Watch_FSM.pdf'              ;
 
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
+
+;;;;;;/;;;;;;;;----------------------------------- add all thr function in this brace
     T2S_FSM:
         mov a, T2S_FSM_state
 
@@ -905,6 +1085,7 @@ home_page:
     jb P2.7, continue20
     jnb p2.7, $
    ;clr TR1 
+    mov state , #0
     mov BCD_counter, #0x00
     mov minutes, #0x0   
     lcall Display_time
@@ -1276,6 +1457,7 @@ main:
     mov SP, #0x7F
     lcall Timer0_Init
     lcall Timer1_Init
+    lcall InitSerialPort
 
     lcall Ports_Init ; Default all pins as bidirectional I/O. See Table 42.
     lcall LCD_4BIT
