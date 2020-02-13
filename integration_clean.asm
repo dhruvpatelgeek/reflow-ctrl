@@ -92,9 +92,6 @@
 ;Variables(dseg) 
     dseg at 0x30
 
-    Result:          ds 4
-    x:               ds 4
-    y:               ds 4
     bcd:             ds 5
     ;FSM varialbles
     temp_soak:       ds 1 ; temp to soak
@@ -127,6 +124,16 @@
     T2S_FSM_state:   ds 1
     Count5ms:        ds 1
     five_sec_flag:   ds 1
+
+    ; Temperature 
+
+    x: ds 4
+    y: ds 4
+    Result: ds 2 
+    ch0: ds 2
+    ch1: ds 2
+    oven_temp: ds 2
+    bcd: ds 5
 
 ;flags(bseg)
     BSEG
@@ -177,6 +184,13 @@
     HOME_BUTTON       equ  P2.7
 
     SQUARE_WAVE       EQU P0.1
+
+    ;define the connections between the ADC and MCU (P89 & MCP3008)
+    CE_ADC    EQU  P1.7;P2.4   ;SS
+    MY_MOSI   EQU  P3.1 ;P2.2  ;MOSI
+    MY_MISO   EQU  P0.3   ;MISO
+    MY_SCLK   EQU  P0.2   ;SPICLK
+    
 ;include files
     $NOLIST
     $include(math32.inc)
@@ -885,7 +899,7 @@ Display_time:
 		Continue2:
         ret
 home_page:
-
+    ; Press Button 2.7 to clean the time
     jb P2.7, continue20
     Wait_Milli_Seconds(#50) ; debounce
     jb P2.7, continue20
@@ -898,10 +912,11 @@ home_page:
    continue20:
     ;--------Timer----------;
 
-    jnb my_flag, Temp_sensor
+    jnb half_seconds_flag, Temp_sensor
     lcall sec_counter
     lcall min_counter
     lcall Display_time
+
     ;-----------------------;
 
     ;-----TEMP SENSOR-------;
@@ -1291,7 +1306,7 @@ main:
 
    ; lcall LCD_4BIT
     ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
-;	Set_Cursor(1, 1)
+ ;	Set_Cursor(1, 1)
   ;  Display_BCD(BCD_counter)
 
     setb half_seconds_flag

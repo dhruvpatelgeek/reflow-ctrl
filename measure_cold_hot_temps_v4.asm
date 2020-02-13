@@ -180,9 +180,6 @@ new_line:
       DB '\r' ,'\n', 0     
     
 Display_putty:
-	Send_BCD(bcd+4)
-	Send_BCD(bcd+3)
-	Send_BCD(bcd+2)
 	Send_BCD(bcd+1)
 	Send_BCD(bcd+0)
 	ret   
@@ -256,11 +253,6 @@ forever:
 	lcall sub32 
 	lcall hex2bcd
 	;lcall Display_putty
-	
-	mov a, #'\r'
-	lcall putchar
-	mov a, #'\n'
-	lcall putchar
 	
 	;do the same for ch1(output voltage of OP AMP) - ch1 corresponds to the hot jnc temp
 	mov x+0, ch1

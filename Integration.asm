@@ -3,7 +3,10 @@
 ; an ISR for timer 0; and c) in the 'main' loop it displays the variable
 ; incremented/decremented using the ISR for timer 2 on the LCD.  Also resets it to 
 ; zero if the 'CLEAR' pushbutton connected to P1.7 is pressed.
-; Start/Constants
+; Start/Constants 
+
+;your mother is a nice person :) jjjggg gvgggggggggggggggg
+
     $NOLIST
     $MOD9351
     $LIST
