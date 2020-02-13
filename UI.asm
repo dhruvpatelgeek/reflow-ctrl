@@ -389,7 +389,7 @@
    ;     mov	BRL,#BRG_VAL
    ;     mov	BDRCON,#0x1E ; BDRCON=BRR|TBCK|RBCK|SPD;
    ;     ret
- ;
+     ;
      ; Send a character using the serial port
      putchar:
          jnb TI, putchar 
@@ -416,12 +416,12 @@
          sjmp SendString
      SendStringDone:
          ret
- ;
+    ;
     ; INIT_SPI_Lab2:     
     ;     setb MY_MISO    ; Make MISO an input pin  1 master input 0 slave out   ;MISO master in/slave out
     ;     clr MY_SCLK     ; For mode (0,0) SCLK is zero     
     ;     ret 
- ;
+    ;
     ; DO_SPI_G:     
     ;     push acc     
     ;     mov R1, #0      ; Received byte stored in R1     
