@@ -175,7 +175,7 @@ bcd: ds 5
 
     cseg
     ; These 'equ' must match the wiring between the microcontroller and the LCD!
-     LCD_RS equ P0.5
+    LCD_RS equ P0.5
     LCD_RW equ P0.6
     LCD_E  equ P0.7
     LCD_D4 equ P1.2
@@ -183,15 +183,14 @@ bcd: ds 5
     LCD_D6 equ P1.4
     LCD_D7 equ P1.6
 
-    CLEAR         equ P0.4
-    FLASH_CE      EQU P1.7
-    SOUND         EQU P3.1
-    stop            equ p0.4
+    CLEAR         equ P3.0
+    FLASH_CE      EQU P2.4
+    SOUND         EQU P0.4;;2.7
     
-    SETUP_SOAK_Button equ  P2.1
-    set_BUTTON        equ  P2.0      
-    Button_min        equ  P2.6
-    HOME_BUTTON       equ  P2.7
+    SETUP_SOAK_Button equ  P0.2
+    set_BUTTON        equ  P0.3
+    Button_min        equ  P2.0
+    HOME_BUTTON       equ  P2.1
 
     ;define the connections between the ADC and MCU (P89 & MCP3008)
 CE_ADC    EQU  P2.7;P2.4   ;SS
@@ -218,7 +217,7 @@ MY_SCLK   EQU  P2.4   ;SPICLK
 
     Initial_Message:  db 'BCD_counter: xx ', 0
    ;Home page
-    Temp0:            db 'Temp:           ', 0
+    Temp0:            db 'Temp:', 0
     the_unit_of_temp:            db 'C', 0
     Time:             db 'Time xx:xx SET  ', 0
    ;Second Page
@@ -320,8 +319,7 @@ new_line:
 
 
 Display_putty:
-    mov x, bcd
-    lcall SendTemp
+    
     
     Set_Cursor(1,5)
     Display_BCD(bcd+1)
@@ -366,8 +364,7 @@ InitSerialPort:
 	ret
 	
 
-DO_SPI_G:
-    clr EA
+DO_SPI_G:     
 	push acc     
 	mov R1, #0      ; Received byte stored in R1     
 	mov R2, #8      ; Loop counter (8-bits)
@@ -384,7 +381,6 @@ DO_SPI_G_LOOP:
 	clr MY_SCLK     
 	djnz R2, DO_SPI_G_LOOP     
 	pop acc     
-    setb EA
 	ret 
 	
 ;---------------------------------;
@@ -392,7 +388,6 @@ DO_SPI_G_LOOP:
 ;---------------------------------;
 
 hannah:
-clr EA
 	;read channel 0 of the ADC and transmitting this info to the MCU
 	clr CE_ADC ;enable device (active low)
 	;transmit the info from channel 0
@@ -450,17 +445,16 @@ clr EA
 	mov x+2, #0
 	mov x+3, #0
 	
-	load_y(1000000)
+	load_y(100)
 	lcall mul32
-	load_y(OP_AMP_GAIN)
-	lcall div32
-	load_y(41)
+	load_y(94)
+	lcall add32
+	load_y(348)
 	lcall div32 
 
-    load_y(8000)
+    load_y(30)
     lcall add32
-    load_y(258)
-    lcall div32
+    
     
     ;load_y(24)
     ;lcall add32
@@ -469,16 +463,15 @@ clr EA
     ;lcall div32
 
 	lcall hex2bcd
-    lcall Delay
+    mov a , bcd+0
+    Set_Cursor(1,12)
+    Display_BCD(a)
+
     ;jnb my_flag, continue30
     ;clr my_flag
-    mov x+0, ch0
-	mov x+1, ch0+1
-    lcall hex2bcd
-	;lcall Display_putty
-    setb EA
-	lcall SendTemp
-    continue30:
+	lcall Display_putty
+	;lcall SendTemp
+    ;continue30:
 	;mov a, #'\r'
 	;lcall putchar
 	;mov a, #'\n'
@@ -1725,7 +1718,7 @@ main:
 forever:	
     lcall FSM_LCD
 
-   ; lcall T2S_FSM
+    lcall T2S_FSM
 	; One second has passed, refresh the LCD with new time
 ;	Set_Cursor(1, 1)
 ;    Send_Constant_String(#timee)
@@ -1738,13 +1731,13 @@ forever:
 
     
         
-  ;  jb P2.6, continue19
-;	Wait_Milli_Seconds(#50) ; debounce
-;	jb P2.6, continue19
-;	jnb P2.6, $
-;	clr TR1 
-;	ljmp forever
-  ; continue19:
+    jb P2.6, continue19
+	Wait_Milli_Seconds(#50) ; debounce
+	jb P2.6, continue19
+	jnb P2.6, $
+	clr TR1 
+	ljmp forever
+   continue19:
 
 
 
@@ -1760,7 +1753,7 @@ forever:
   ;  pass_quack:ssss
   ;  setb TR1 ; en timer 1.
 
-  ;  lcall hannah
+    lcall hannah
    
 
     mov a, state

@@ -124,7 +124,7 @@
     w:               ds 3 ; 24-bit play counter.  Decremented in CCU ISR.
     minutes:         ds 1
     seconds:         ds 1
-    T2S_FSM_state:   ds 1
+    Sound_FSM_state:   ds 1
     Count5ms:        ds 1
     five_sec_flag:   ds 1
 
@@ -140,7 +140,7 @@
 
 ;flags(bseg)
     BSEG
-    T2S_FSM_start:     dbit 1
+    Sound_FSM_start:     dbit 1
     seconds_flag:      dbit 1
     mf:                dbit 1
     half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
@@ -312,7 +312,7 @@
         ; Check if 1 second has passed
         pass:
         mov a, Count10ms
-        cjne a, #200, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
+        cjne a, #100, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
         ;----------------------------;
         inc sec ; one second has passed
         mov a,sec
@@ -786,150 +786,150 @@ Display_putty:
 	ret   
 
 
-    T2S_FSM:
-        mov a, T2S_FSM_state
+    Sound_FSM:
+        mov a, Sound_FSM_state
 
-    T2S_FSM_State0: ; Checks for the start signal (T2S_FSM_Start==1)
-        cjne a, #0, T2S_FSM_State1
-        jnb T2S_FSM_Start, T2S_FSM_State0_Done
+    Sound_FSM_State0: ; Checks for the start signal (Sound_FSM_Start==1)
+        cjne a, #0, Sound_FSM_State1
+        jnb Sound_FSM_Start, Sound_FSM_State0_Done
         ; Check if minutes is larger than 19
         clr c
         mov a, minutes
         subb a, #20
         jnc minutes_gt_19
-        mov T2S_FSM_state, #1
-        sjmp T2S_FSM_State0_Done
+        mov Sound_FSM_state, #1
+        sjmp Sound_FSM_State0_Done
     minutes_gt_19:
-        mov T2S_FSM_state, #3
-    T2S_FSM_State0_Done:
+        mov Sound_FSM_state, #3
+    Sound_FSM_State0_Done:
         ret
         
-    T2S_FSM_State1: ; Plays minutes when minutes is less than 20
-        cjne a, #1, T2S_FSM_State2
+    Sound_FSM_State1: ; Plays minutes when minutes is less than 20
+        cjne a, #1, Sound_FSM_State2
         mov a, minutes
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #2
+        mov Sound_FSM_State, #2
         ret 
 
-    T2S_FSM_State2: ; Stay in this state until sound finishes playing
-        cjne a, #2, T2S_FSM_State3
-        jb TMOD20, T2S_FSM_State2_Done 
-        mov T2S_FSM_State, #6
-    T2S_FSM_State2_Done:
+    Sound_FSM_State2: ; Stay in this state until sound finishes playing
+        cjne a, #2, Sound_FSM_State3
+        jb TMOD20, Sound_FSM_State2_Done 
+        mov Sound_FSM_State, #6
+    Sound_FSM_State2_Done:
         ret
 
-    T2S_FSM_State3: ; Plays the tens when minutes is larger than 19, for example for 42 minutes, it plays 'forty'
-        cjne a, #3, T2S_FSM_State4
+    Sound_FSM_State3: ; Plays the tens when minutes is larger than 19, for example for 42 minutes, it plays 'forty'
+        cjne a, #3, Sound_FSM_State4
         mov a, minutes
         mov b, #10
         div ab
         add a, #18
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #4
+        mov Sound_FSM_State, #4
         ret
 
-    T2S_FSM_State4: ; Stay in this state until sound finishes playing
-        cjne a, #4, T2S_FSM_State5
-        jb TMOD20, T2S_FSM_State4_Done 
-        mov T2S_FSM_State, #5
-    T2S_FSM_State4_Done:
+    Sound_FSM_State4: ; Stay in this state until sound finishes playing
+        cjne a, #4, Sound_FSM_State5
+        jb TMOD20, Sound_FSM_State4_Done 
+        mov Sound_FSM_State, #5
+    Sound_FSM_State4_Done:
         ret
 
-    T2S_FSM_State5: ; Plays the units when minutes is larger than 19, for example for 42 minutes, it plays 'two'
-        cjne a, #5, T2S_FSM_State6
+    Sound_FSM_State5: ; Plays the units when minutes is larger than 19, for example for 42 minutes, it plays 'two'
+        cjne a, #5, Sound_FSM_State6
         mov a, minutes
         mov b, #10
         div ab
         mov a, b
-        jz T2S_FSM_State5_Done ; Prevents from playing something like 'forty zero'
+        jz Sound_FSM_State5_Done ; Prevents from playing something like 'forty zero'
         lcall Play_Sound_Using_Index
-    T2S_FSM_State5_Done:
-        mov T2S_FSM_State, #2
+    Sound_FSM_State5_Done:
+        mov Sound_FSM_State, #2
         ret
 
-    T2S_FSM_State6: ; Plays the word 'minutes'
-        cjne a, #6, T2S_FSM_State7
+    Sound_FSM_State6: ; Plays the word 'minutes'
+        cjne a, #6, Sound_FSM_State7
         mov a, #24 ; Index 24 has the word 'minutes'
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #7
+        mov Sound_FSM_State, #7
         ret
 
-    T2S_FSM_State7: ; Stay in this state until sound finishes playing
-        cjne a, #7, T2S_FSM_State8
-        jb TMOD20, T2S_FSM_State7_Done 
+    Sound_FSM_State7: ; Stay in this state until sound finishes playing
+        cjne a, #7, Sound_FSM_State8
+        jb TMOD20, Sound_FSM_State7_Done 
         ; Done playing previous sound, check if seconds is larger than 19
         clr c
         mov a, seconds
         subb a, #20
         jnc seconds_gt_19
-        mov T2S_FSM_state, #8
-        sjmp T2S_FSM_State0_Done
+        mov Sound_FSM_state, #8
+        sjmp Sound_FSM_State0_Done
     seconds_gt_19:
-        mov T2S_FSM_state, #10
-    T2S_FSM_State7_Done:
+        mov Sound_FSM_state, #10
+    Sound_FSM_State7_Done:
         ret
 
-    T2S_FSM_State8: ; Play the seconds when seconds is less than 20.
-        cjne a, #8, T2S_FSM_State9
+    Sound_FSM_State8: ; Play the seconds when seconds is less than 20.
+        cjne a, #8, Sound_FSM_State9
         mov a, seconds
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_state, #9
+        mov Sound_FSM_state, #9
         ret
 
-    T2S_FSM_State9: ; Stay in this state until sound finishes playing
-        cjne a, #9, T2S_FSM_State10
-        jb TMOD20, T2S_FSM_State9_Done 
-        mov T2S_FSM_State, #13
-    T2S_FSM_State9_Done:
+    Sound_FSM_State9: ; Stay in this state until sound finishes playing
+        cjne a, #9, Sound_FSM_State10
+        jb TMOD20, Sound_FSM_State9_Done 
+        mov Sound_FSM_State, #13
+    Sound_FSM_State9_Done:
         ret
 
-    T2S_FSM_State10:  ; Plays the tens when seconds is larger than 19, for example for 35 seconds, it plays 'thirty'
-        cjne a, #10, T2S_FSM_State11
+    Sound_FSM_State10:  ; Plays the tens when seconds is larger than 19, for example for 35 seconds, it plays 'thirty'
+        cjne a, #10, Sound_FSM_State11
         mov a, seconds
         mov b, #10
         div ab
         add a, #18
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_state, #11
+        mov Sound_FSM_state, #11
         ret
 
-    T2S_FSM_State11: ; Stay in this state until sound finishes playing
-        cjne a, #11, T2S_FSM_State12
-        jb TMOD20, T2S_FSM_State11_Done 
-        mov T2S_FSM_State, #12
-    T2S_FSM_State11_Done:
+    Sound_FSM_State11: ; Stay in this state until sound finishes playing
+        cjne a, #11, Sound_FSM_State12
+        jb TMOD20, Sound_FSM_State11_Done 
+        mov Sound_FSM_State, #12
+    Sound_FSM_State11_Done:
         ret
 
-    T2S_FSM_State12: ; Plays the units when seconds is larger than 19, for example for 35 seconds, it plays 'five'
-        cjne a, #12, T2S_FSM_State13
+    Sound_FSM_State12: ; Plays the units when seconds is larger than 19, for example for 35 seconds, it plays 'five'
+        cjne a, #12, Sound_FSM_State13
         mov a, seconds
         mov b, #10
         div ab
         mov a, b
-        jz T2S_FSM_State12_Done ; Prevents from saying something like 'thirty zero'
+        jz Sound_FSM_State12_Done ; Prevents from saying something like 'thirty zero'
         lcall Play_Sound_Using_Index
-    T2S_FSM_State12_Done:
-        mov T2S_FSM_State, #9
+    Sound_FSM_State12_Done:
+        mov Sound_FSM_State, #9
         ret
 
-    T2S_FSM_State13: ; Plays the word 'seconds'
-        cjne a, #13, T2S_FSM_State14
+    Sound_FSM_State13: ; Plays the word 'seconds'
+        cjne a, #13, Sound_FSM_State14
         mov a, #25 ; Index 25 has the word 'seconds'
         lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #14
+        mov Sound_FSM_State, #14
         ret
 
-    T2S_FSM_State14: ; Stay in this state until sound finishes playing
-        cjne a, #14, T2S_FSM_Error
-        jb TMOD20, T2S_FSM_State14_Done 
-        clr T2S_FSM_Start 
-        mov T2S_FSM_State, #0
-    T2S_FSM_State14_Done:
+    Sound_FSM_State14: ; Stay in this state until sound finishes playing
+        cjne a, #14, Sound_FSM_Error
+        jb TMOD20, Sound_FSM_State14_Done 
+        clr Sound_FSM_Start 
+        mov Sound_FSM_State, #0
+    Sound_FSM_State14_Done:
         ret
 
-    T2S_FSM_Error: ; If we got to this point, there is an error in the finite state machine.  Restart it.
-        mov T2S_FSM_state, #0
-        clr T2S_FSM_Start
+    Sound_FSM_Error: ; If we got to this point, there is an error in the finite state machine.  Restart it.
+        mov Sound_FSM_state, #0
+        clr Sound_FSM_Start
         ret
 ;---------------------------------------------------------------------------------;       
 WaitHalfSec:
@@ -1408,8 +1408,8 @@ main:
 	setb EA ; Enable global interrupts.
 
 	; Initialize variables
-	clr T2S_FSM_Start
-	mov T2S_FSM_state, #0
+	clr Sound_FSM_Start
+	mov Sound_FSM_state, #0
     ; Configure all the ports in bidirectional mode:
 
     mov P0M1, #00H
@@ -1461,7 +1461,7 @@ main:
     
 forever:	
     lcall FSM_LCD
-    lcall T2S_FSM ; Speaker fsm
+    lcall Sound_FSM ; Speaker fsm
     lcall FSM_PWM
       Check_if_stop_button_is_on:
    jb P2.6, continue19 

@@ -1,5 +1,8 @@
-
-;;;;;;;;
+; ISR_example.asm: a) Increments/decrements a BCD variable every half second using
+; an ISR for timer 2; b) Generates a 2kHz square wave at pin P3.7 using
+; an ISR for timer 0; and c) in the 'main' loop it displays the variable
+; incremented/decremented using the ISR for timer 2 on the LCD.  Also resets it to 
+; zero if the 'CLEAR' pushbutton connected to P1.7 is pressed.
 ; Start/Constants
     $NOLIST
     $MOD9351
@@ -17,9 +20,6 @@
     CCU_RELOAD  EQU ((65536-((CLK/(2*CCU_RATE)))))
     BAUD        EQU 115200
     BRVAL       EQU ((CLK/BAUD)-16)
-
-        ;definitions for clk, baud rate, etc.
-    OP_AMP_GAIN EQU 340 ;what is the exact gain?
 
 
 
@@ -96,6 +96,10 @@
 ;Variables(dseg) 
     dseg at 0x30
 
+    Result:          ds 4
+    x:               ds 4
+    y:               ds 4
+    bcd:             ds 5
     ;FSM varialbles
     temp_soak:       ds 1 ; temp to soak
     time_soak:       ds 1 ; time to soak
@@ -128,16 +132,6 @@
     Count5ms:        ds 1
     five_sec_flag:   ds 1
 
-    ; Temperature 
-
-    x: ds 4
-    y: ds 4
-    Result: ds 2 
-    ch0: ds 2
-    ch1: ds 2
-    oven_temp: ds 2
-    bcd: ds 5
-
 ;flags(bseg)
     BSEG
     T2S_FSM_start:     dbit 1
@@ -153,7 +147,6 @@
     tt_flag_soak:      dbit 1
     stop_flag:         dbit 1
     my_flag:           dbit 1
-
 
     ;_ _ _ _ | _ _ _ _ _ _
     ;
@@ -182,19 +175,11 @@
     FLASH_CE      EQU P2.4
     SOUND         EQU P2.7
     
+    
     SETUP_SOAK_Button equ  P2.1
     set_BUTTON        equ  P2.2
     Button_min        equ  P2.0
     HOME_BUTTON       equ  P1.7
-
-    SQUARE_WAVE       EQU P0.1
-
-    ;define the connections between the ADC and MCU (P89 & MCP3008)
-    CE_ADC    EQU  P1.7;P2.4   ;SS
-    MY_MOSI   EQU  P3.1 ;P2.2  ;MOSI
-    MY_MISO   EQU  P0.3   ;MISO
-    MY_SCLK   EQU  P0.2   ;SPICLK
-    
 ;include files
     $NOLIST
     $include(math32.inc)
@@ -229,8 +214,6 @@
     soak_setup2:      db 'Time',0
     soak_setup3:      db 'HOME',0
 
-    ;Termperature
-    HexAscii: db '0123456789ABCDEF',0
 ;------ISR-------;
     ;---------------------------------;
     ; Routine to initialize the ISR   ;
@@ -299,25 +282,33 @@
         ; Increment the 16-bit one mili second counter
     Inc_Done:
         mov a, Count10ms
-        subb a, pwm ; if pwm greater than a count 10 ms  is  the pin is off else on 
+        subb a, pwm ; if pwm greater than a pwm is on else off
         da a
+       ; mov a, product
         jnc off_segment
-        setb SQUARE_WAVE
+        setb p0.1
         clr c
         sjmp pass
         off_segment:
-        clr SQUARE_WAVE
+        clr p0.1
         clr c
         sjmp pass
+
         ; Check if 1 second has passed
         pass:
+
+        ; Check if half second has passed
         mov a, Count10ms
         cjne a, #200, Timer1_ISR_done ; Warning: this instruction changes the carry flag!
-        ;----------------------------;
+        ;----------------------------
         inc sec ; one second has passed
         mov a,sec
         da a
         mov sec,a
+        inc five_sec_flag ; one second has passed
+        mov a,five_sec_flag
+        da a
+        mov five_sec_flag,a
         mov a,sec
        ; mov minutes, #0
         mov seconds, acc 
@@ -326,6 +317,7 @@
         setb half_seconds_flag ; Let the main program know half second had passed
         ; Reset to zero the 10-milli-seconds counter, it is a 8-bit variable
         mov Count10ms, #0x00
+   ;     mov Count1ms, #0x00
         ; Increment the BCD counter
         mov a, BCD_counter
         add a, #0x01
@@ -486,12 +478,12 @@ Init_SPI:
 ;---------------------------------;
 Send_SPI:
 	mov SPDAT, a
-    Send_SPI_1:
-        mov a, SPSTAT 
-        jnb acc.7, Send_SPI_1 ; Check SPI Transfer Completion Flag
-        mov SPSTAT, a ; Clear SPI Transfer Completion Flag
-        mov a, SPDAT ; return received byte via accumulator
-        ret
+Send_SPI_1:
+	mov a, SPSTAT 
+	jnb acc.7, Send_SPI_1 ; Check SPI Transfer Completion Flag
+	mov SPSTAT, a ; Clear SPI Transfer Completion Flag
+	mov a, SPDAT ; return received byte via accumulator
+	ret
 
 ;---------------------------------;
 ; SPI flash 'write enable'        ;
@@ -531,424 +523,352 @@ LCD_number:
 	lcall ?WriteData
 	pop acc
 	ret
-;SPEAKER
-    ; Sounds we need in the SPI flash: 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19; 20; 30; 40; 50; minutes; seconds;
-    ; Approximate index of sounds in file 'stop_watch.wav'
-    ; This was generated using: computer_sender -Asw_index.asm -S2000 stop_watch.wav
-    sound_index:
-        db 0x00, 0x00, 0x2d ; 0 
-        db 0x00, 0x31, 0x07 ; 1 
-        db 0x00, 0x70, 0x07 ; 2 
-        db 0x00, 0xad, 0xb9 ; 3 
-        db 0x00, 0xf2, 0x66 ; 4 
-        db 0x01, 0x35, 0xd5 ; 5 
-        db 0x01, 0x7d, 0x33 ; 6 
-        db 0x01, 0xc7, 0x61 ; 7 
-        db 0x02, 0x12, 0x79 ; 8 
-        db 0x02, 0x49, 0xc1 ; 9 
-        db 0x02, 0x8f, 0x7a ; 10 
-        db 0x02, 0xd0, 0x63 ; 11 
-        db 0x03, 0x1b, 0x87 ; 12 
-        db 0x03, 0x63, 0x0e ; 13 
-        db 0x03, 0xb9, 0x5f ; 14 
-        db 0x04, 0x11, 0x3a ; 15 
-        db 0x04, 0x66, 0xc4 ; 16 
-        db 0x04, 0xc0, 0x12 ; 17 
-        db 0x05, 0x26, 0x98 ; 18 
-        db 0x05, 0x74, 0xe9 ; 19 
-        db 0x05, 0xd2, 0x8e ; 20 
-        db 0x06, 0x1d, 0x83 ; 21 -> 30 
-        db 0x06, 0x63, 0x42 ; 22 -> 40 
-        db 0x06, 0xaa, 0xb9 ; 23 -> 50 
-        db 0x06, 0xf3, 0xd6 ; 24 -> Minutes 
-        db 0x07, 0x3f, 0x02 ; 25 -> Seconds 
 
-    ; Size of each sound in 'sound_index'
-    ; Generated using: computer_sender -Asw_index.asm -S2000 stop_watch.wav
-    Size_Length:
-        db 0x00, 0x30, 0xda ; 0 
-        db 0x00, 0x3f, 0x00 ; 1 
-        db 0x00, 0x3d, 0xb2 ; 2 
-        db 0x00, 0x44, 0xad ; 3 
-        db 0x00, 0x43, 0x6f ; 4 
-        db 0x00, 0x47, 0x5e ; 5 
-        db 0x00, 0x4a, 0x2e ; 6 
-        db 0x00, 0x4b, 0x18 ; 7 
-        db 0x00, 0x37, 0x48 ; 8 
-        db 0x00, 0x45, 0xb9 ; 9 
-        db 0x00, 0x40, 0xe9 ; 10 
-        db 0x00, 0x4b, 0x24 ; 11 
-        db 0x00, 0x47, 0x87 ; 12 
-        db 0x00, 0x56, 0x51 ; 13 
-        db 0x00, 0x57, 0xdb ; 14 
-        db 0x00, 0x55, 0x8a ; 15 
-        db 0x00, 0x59, 0x4e ; 16 
-        db 0x00, 0x66, 0x86 ; 17 
-        db 0x00, 0x4e, 0x51 ; 18 
-        db 0x00, 0x5d, 0xa5 ; 19 
-        db 0x00, 0x4a, 0xf5 ; 20 
-        db 0x00, 0x45, 0xbf ; 21 -> 30
-        db 0x00, 0x47, 0x77 ; 22 -> 40
-        db 0x00, 0x49, 0x1d ; 23 -> 50
-        db 0x00, 0x4b, 0x2c ; 24 -> minutes
-        db 0x00, 0x5c, 0x87 ; 25 -> seconds
+; Sounds we need in the SPI flash: 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19; 20; 30; 40; 50; minutes; seconds;
+; Approximate index of sounds in file 'stop_watch.wav'
+; This was generated using: computer_sender -Asw_index.asm -S2000 stop_watch.wav
+sound_index:
+    db 0x00, 0x00, 0x2d ; 0 
+    db 0x00, 0x31, 0x07 ; 1 
+    db 0x00, 0x70, 0x07 ; 2 
+    db 0x00, 0xad, 0xb9 ; 3 
+    db 0x00, 0xf2, 0x66 ; 4 
+    db 0x01, 0x35, 0xd5 ; 5 
+    db 0x01, 0x7d, 0x33 ; 6 
+    db 0x01, 0xc7, 0x61 ; 7 
+    db 0x02, 0x12, 0x79 ; 8 
+    db 0x02, 0x49, 0xc1 ; 9 
+    db 0x02, 0x8f, 0x7a ; 10 
+    db 0x02, 0xd0, 0x63 ; 11 
+    db 0x03, 0x1b, 0x87 ; 12 
+    db 0x03, 0x63, 0x0e ; 13 
+    db 0x03, 0xb9, 0x5f ; 14 
+    db 0x04, 0x11, 0x3a ; 15 
+    db 0x04, 0x66, 0xc4 ; 16 
+    db 0x04, 0xc0, 0x12 ; 17 
+    db 0x05, 0x26, 0x98 ; 18 
+    db 0x05, 0x74, 0xe9 ; 19 
+    db 0x05, 0xd2, 0x8e ; 20 
+    db 0x06, 0x1d, 0x83 ; 21 -> 30 
+    db 0x06, 0x63, 0x42 ; 22 -> 40 
+    db 0x06, 0xaa, 0xb9 ; 23 -> 50 
+    db 0x06, 0xf3, 0xd6 ; 24 -> Minutes 
+    db 0x07, 0x3f, 0x02 ; 25 -> Seconds 
 
-    ; The sound and its length from the two tables above is passed in the accumulator.
-    Play_Sound_Using_Index:
-        setb SOUND ; Turn speaker on
-        clr TMOD20 ; Stop the CCU from playing previous request
-        setb FLASH_CE
-        
-        ; There are three bytes per row in our tables, so multiply index by three
-        mov b, #3
-        mul ab
-        mov R0, a ; Make a copy of the index*3
-        
-        clr FLASH_CE ; Enable SPI Flash
-        mov a, #READ_BYTES
-        lcall Send_SPI
-        ; Set the initial position in memory of where to start playing
-        mov dptr, #sound_index
-        mov a, R0
-        movc a, @a+dptr
-        lcall Send_SPI
-        inc dptr
-        mov a, R0
-        movc a, @a+dptr
-        lcall Send_SPI
-        inc dptr
-        mov a, R0
-        movc a, @a+dptr
-        lcall Send_SPI
-        ; Now set how many bytes to play
-        mov dptr, #Size_Length
-        mov a, R0
-        movc a, @a+dptr
-        mov w+2, a
-        inc dptr
-        mov a, R0
-        movc a, @a+dptr
-        mov w+1, a
-        inc dptr
-        mov a, R0
-        movc a, @a+dptr
-        mov w+0, a
-        
-        mov a, #0x00 ; Request first byte to send to DAC
-        lcall Send_SPI
-        
-        setb TMOD20 ; Start playback by enabling CCU timer
+; Size of each sound in 'sound_index'
+; Generated using: computer_sender -Asw_index.asm -S2000 stop_watch.wav
+Size_Length:
+    db 0x00, 0x30, 0xda ; 0 
+    db 0x00, 0x3f, 0x00 ; 1 
+    db 0x00, 0x3d, 0xb2 ; 2 
+    db 0x00, 0x44, 0xad ; 3 
+    db 0x00, 0x43, 0x6f ; 4 
+    db 0x00, 0x47, 0x5e ; 5 
+    db 0x00, 0x4a, 0x2e ; 6 
+    db 0x00, 0x4b, 0x18 ; 7 
+    db 0x00, 0x37, 0x48 ; 8 
+    db 0x00, 0x45, 0xb9 ; 9 
+    db 0x00, 0x40, 0xe9 ; 10 
+    db 0x00, 0x4b, 0x24 ; 11 
+    db 0x00, 0x47, 0x87 ; 12 
+    db 0x00, 0x56, 0x51 ; 13 
+    db 0x00, 0x57, 0xdb ; 14 
+    db 0x00, 0x55, 0x8a ; 15 
+    db 0x00, 0x59, 0x4e ; 16 
+    db 0x00, 0x66, 0x86 ; 17 
+    db 0x00, 0x4e, 0x51 ; 18 
+    db 0x00, 0x5d, 0xa5 ; 19 
+    db 0x00, 0x4a, 0xf5 ; 20 
+    db 0x00, 0x45, 0xbf ; 21 -> 30
+    db 0x00, 0x47, 0x77 ; 22 -> 40
+    db 0x00, 0x49, 0x1d ; 23 -> 50
+    db 0x00, 0x4b, 0x2c ; 24 -> minutes
+    db 0x00, 0x5c, 0x87 ; 25 -> seconds
 
-        ret
-    
-
-
-InitSerialPort:
-	;DEBOUNCING??
-	; Since the reset button bounces, we need to wait a bit before
-    ; sending messages, otherwise we risk displaying gibberish!
-    ;mov R1, #222
-    ;mov R0, #166
-    ;djnz R0, $   ; 3 cycles->3*45.21123ns*166=22.51519us
-    ;djnz R1, $-4 ; 22.51519us*222=4.998ms
-    ; Now we can proceed with the configuration
+; The sound and its length from the two tables above is passed in the accumulator.
+Play_Sound_Using_Index:
+	setb SOUND ; Turn speaker on
+	clr TMOD20 ; Stop the CCU from playing previous request
+	setb FLASH_CE
 	
-	mov	BRGCON,#0x00
-	mov	BRGR1,#high(BRVAL)
-	mov	BRGR0,#low(BRVAL)
-	mov	BRGCON,#0x03 ; Turn-on the baud rate generator
-	mov	SCON,#0x52 ; Serial port in mode 1, ren, txrdy, rxempty
-	mov	P1M1,#0x00 ; Enable pins RxD and TXD
-	mov	P1M2,#0x00 ; Enable pins RxD and TXD
+	; There are three bytes per row in our tables, so multiply index by three
+	mov b, #3
+	mul ab
+	mov R0, a ; Make a copy of the index*3
+	
+	clr FLASH_CE ; Enable SPI Flash
+	mov a, #READ_BYTES
+	lcall Send_SPI
+	; Set the initial position in memory of where to start playing
+	mov dptr, #sound_index
+	mov a, R0
+	movc a, @a+dptr
+	lcall Send_SPI
+	inc dptr
+	mov a, R0
+	movc a, @a+dptr
+	lcall Send_SPI
+	inc dptr
+	mov a, R0
+	movc a, @a+dptr
+	lcall Send_SPI
+	; Now set how many bytes to play
+	mov dptr, #Size_Length
+	mov a, R0
+	movc a, @a+dptr
+	mov w+2, a
+	inc dptr
+	mov a, R0
+	movc a, @a+dptr
+	mov w+1, a
+	inc dptr
+	mov a, R0
+	movc a, @a+dptr
+	mov w+0, a
+	
+	mov a, #0x00 ; Request first byte to send to DAC
+	lcall Send_SPI
+	
+	setb TMOD20 ; Start playback by enabling CCU timer
+
 	ret
+ ; Send a character using the serial port
+putchar:
+        jnb TI, putchar 
+        ; TI serial interrupt flag is set and when last bit (stop bit) 
+        ; of receiving data byte is received, RI flag get set. IE register
+        ; is used to enable/disable interrupt sources.
+        clr TI
+        mov SBUF, a
+        ret
 
+;---------------------------------------------------------------------------------;
+; This is the FSM that plays minutes and seconds after the STOP button is pressed ;
+; The state diagram of this FSM is available as 'Stop_Watch_FSM.pdf'              ;
+;---------------------------------------------------------------------------------;
+T2S_FSM:
+	mov a, T2S_FSM_state
 
-DO_SPI_G:     
-	push acc     
-	mov R1, #0      ; Received byte stored in R1     
-	mov R2, #8      ; Loop counter (8-bits)
-DO_SPI_G_LOOP:     
-	mov a, R0       ; Byte to write is in R0     
-	rlc a           ; Carry flag has bit to write     
-	mov R0, a     
-	mov MY_MOSI, c 
-	setb MY_SCLK    ; Transmit     
-	mov c, MY_MISO  ; Read received bit     
-	mov a, R1       ; Save received bit in R1    
-	rlc a 
-	mov R1, a     
-	clr MY_SCLK     
-	djnz R2, DO_SPI_G_LOOP     
-	pop acc     
+T2S_FSM_State0: ; Checks for the start signal (T2S_FSM_Start==1)
+	cjne a, #0, T2S_FSM_State1
+	jnb T2S_FSM_Start, T2S_FSM_State0_Done
+	; Check if minutes is larger than 19
+	clr c
+	mov a, minutes
+	subb a, #20
+	jnc minutes_gt_19
+	mov T2S_FSM_state, #1
+	sjmp T2S_FSM_State0_Done
+minutes_gt_19:
+	mov T2S_FSM_state, #3
+T2S_FSM_State0_Done:
+	ret
+	
+T2S_FSM_State1: ; Plays minutes when minutes is less than 20
+	cjne a, #1, T2S_FSM_State2
+	mov a, minutes
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_State, #2
 	ret 
-	
-;;---------------------------------;
-;; Send a BCD number to PuTTY      ;
-;;---------------------------------;
-;Send_BCD mac
-;	push ar0
-;	mov r0, %0
-;	lcall ?Send_BCD
-;	pop ar0
-;endmac
-;
-;?Send_BCD:
-;	push acc
-;	; Write most significant digit
-;	mov a, r0
-;	swap a
-;	anl a, #0fh
-;	orl a, #30h
-;	lcall putchar
-;	; write least significant digit
-;	mov a, r0
-;	anl a, #0fh
-;	orl a, #30h
-;	lcall putchar
-;	pop acc
-;	ret	 
 
-; Send a character using the serial port
-;putchar:
-;	jbc	TI,putchar_L1
-;	sjmp putchar
-;putchar_L1:
-;	mov	SBUF,a
-;	ret
-	
-getchar:
-	jbc	RI,getchar_L1
-	sjmp getchar
-getchar_L1:
-	mov	a,SBUF
-	ret	
-    
-;approximate delay of 1s
-Delay:
-    mov R2, #89*2
-L4: mov R1, #250
-L5: mov R0, #166
-L6: djnz R0, L6 ; 3 cycles->3*45.21123ns*166=22.51519us
-    djnz R1, L5 ; 22.51519us*250=5.629ms
-    djnz R2, L4 ; 5.629ms*89=0.5s (approximately)
-    ret
-    
-
-
-SendTemp:
-	mov dptr, #HexAscii 
-	
-	mov a, bcd+1
-	swap a
-	anl a, #0xf
-	movc a, @a+dptr
-	lcall putchar
-	mov a, bcd+1
-	anl a, #0xf
-	movc a, @a+dptr
-	lcall putchar
-
-	mov a, #'.'
-	lcall putchar
-
-	mov a, bcd+0
-	swap a
-	anl a, #0xf
-	movc a, @a+dptr
-	lcall putchar
-	mov a, bcd+0
-	anl a, #0xf
-	movc a, @a+dptr
-	lcall putchar
-	
-	mov a, #'\r'
-	lcall putchar
-	mov a, #'\n'
-	lcall putchar	
-	ret    
-
-SendString:
-    clr a
-    movc a, @a+dptr
-    jz SendString_L1
-    lcall putchar
-    inc dptr
-    sjmp SendString  
-SendString_L1:
+T2S_FSM_State2: ; Stay in this state until sound finishes playing
+	cjne a, #2, T2S_FSM_State3
+	jb TMOD20, T2S_FSM_State2_Done 
+	mov T2S_FSM_State, #6
+T2S_FSM_State2_Done:
 	ret
-    
-new_line:
-      DB '\r' ,'\n', 0     
-    
-Display_putty:
-	Send_BCD(bcd+1)
-	Send_BCD(bcd+0)
-	ret   
 
+T2S_FSM_State3: ; Plays the tens when minutes is larger than 19, for example for 42 minutes, it plays 'forty'
+	cjne a, #3, T2S_FSM_State4
+	mov a, minutes
+	mov b, #10
+	div ab
+	add a, #18
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_State, #4
+	ret
 
-    T2S_FSM:
-        mov a, T2S_FSM_state
+T2S_FSM_State4: ; Stay in this state until sound finishes playing
+	cjne a, #4, T2S_FSM_State5
+	jb TMOD20, T2S_FSM_State4_Done 
+	mov T2S_FSM_State, #5
+T2S_FSM_State4_Done:
+    ret
 
-    T2S_FSM_State0: ; Checks for the start signal (T2S_FSM_Start==1)
-        cjne a, #0, T2S_FSM_State1
-        jnb T2S_FSM_Start, T2S_FSM_State0_Done
-        ; Check if minutes is larger than 19
-        clr c
-        mov a, minutes
-        subb a, #20
-        jnc minutes_gt_19
-        mov T2S_FSM_state, #1
-        sjmp T2S_FSM_State0_Done
-    minutes_gt_19:
-        mov T2S_FSM_state, #3
-    T2S_FSM_State0_Done:
-        ret
+T2S_FSM_State5: ; Plays the units when minutes is larger than 19, for example for 42 minutes, it plays 'two'
+	cjne a, #5, T2S_FSM_State6
+	mov a, minutes
+	mov b, #10
+	div ab
+	mov a, b
+	jz T2S_FSM_State5_Done ; Prevents from playing something like 'forty zero'
+	lcall Play_Sound_Using_Index
+T2S_FSM_State5_Done:
+	mov T2S_FSM_State, #2
+	ret
+
+T2S_FSM_State6: ; Plays the word 'minutes'
+	cjne a, #6, T2S_FSM_State7
+	mov a, #24 ; Index 24 has the word 'minutes'
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_State, #7
+	ret
+
+T2S_FSM_State7: ; Stay in this state until sound finishes playing
+	cjne a, #7, T2S_FSM_State8
+	jb TMOD20, T2S_FSM_State7_Done 
+	; Done playing previous sound, check if seconds is larger than 19
+	clr c
+	mov a, seconds
+	subb a, #20
+	jnc seconds_gt_19
+	mov T2S_FSM_state, #8
+	sjmp T2S_FSM_State0_Done
+seconds_gt_19:
+	mov T2S_FSM_state, #10
+T2S_FSM_State7_Done:
+    ret
+
+T2S_FSM_State8: ; Play the seconds when seconds is less than 20.
+	cjne a, #8, T2S_FSM_State9
+	mov a, seconds
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_state, #9
+	ret
+
+T2S_FSM_State9: ; Stay in this state until sound finishes playing
+	cjne a, #9, T2S_FSM_State10
+	jb TMOD20, T2S_FSM_State9_Done 
+	mov T2S_FSM_State, #13
+T2S_FSM_State9_Done:
+	ret
+
+T2S_FSM_State10:  ; Plays the tens when seconds is larger than 19, for example for 35 seconds, it plays 'thirty'
+	cjne a, #10, T2S_FSM_State11
+	mov a, seconds
+	mov b, #10
+	div ab
+	add a, #18
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_state, #11
+	ret
+
+T2S_FSM_State11: ; Stay in this state until sound finishes playing
+	cjne a, #11, T2S_FSM_State12
+	jb TMOD20, T2S_FSM_State11_Done 
+	mov T2S_FSM_State, #12
+T2S_FSM_State11_Done:
+	ret
+
+T2S_FSM_State12: ; Plays the units when seconds is larger than 19, for example for 35 seconds, it plays 'five'
+	cjne a, #12, T2S_FSM_State13
+	mov a, seconds
+	mov b, #10
+	div ab
+	mov a, b
+	jz T2S_FSM_State12_Done ; Prevents from saying something like 'thirty zero'
+	lcall Play_Sound_Using_Index
+T2S_FSM_State12_Done:
+	mov T2S_FSM_State, #9
+	ret
+
+T2S_FSM_State13: ; Plays the word 'seconds'
+	cjne a, #13, T2S_FSM_State14
+	mov a, #25 ; Index 25 has the word 'seconds'
+	lcall Play_Sound_Using_Index
+	mov T2S_FSM_State, #14
+	ret
+
+T2S_FSM_State14: ; Stay in this state until sound finishes playing
+	cjne a, #14, T2S_FSM_Error
+	jb TMOD20, T2S_FSM_State14_Done 
+	clr T2S_FSM_Start 
+	mov T2S_FSM_State, #0
+T2S_FSM_State14_Done:
+	ret
+
+T2S_FSM_Error: ; If we got to this point, there is an error in the finite state machine.  Restart it.
+	mov T2S_FSM_state, #0
+	clr T2S_FSM_Start
+	ret
         
-    T2S_FSM_State1: ; Plays minutes when minutes is less than 20
-        cjne a, #1, T2S_FSM_State2
-        mov a, minutes
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #2
-        ret 
-
-    T2S_FSM_State2: ; Stay in this state until sound finishes playing
-        cjne a, #2, T2S_FSM_State3
-        jb TMOD20, T2S_FSM_State2_Done 
-        mov T2S_FSM_State, #6
-    T2S_FSM_State2_Done:
-        ret
-
-    T2S_FSM_State3: ; Plays the tens when minutes is larger than 19, for example for 42 minutes, it plays 'forty'
-        cjne a, #3, T2S_FSM_State4
-        mov a, minutes
-        mov b, #10
-        div ab
-        add a, #18
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #4
-        ret
-
-    T2S_FSM_State4: ; Stay in this state until sound finishes playing
-        cjne a, #4, T2S_FSM_State5
-        jb TMOD20, T2S_FSM_State4_Done 
-        mov T2S_FSM_State, #5
-    T2S_FSM_State4_Done:
-        ret
-
-    T2S_FSM_State5: ; Plays the units when minutes is larger than 19, for example for 42 minutes, it plays 'two'
-        cjne a, #5, T2S_FSM_State6
-        mov a, minutes
-        mov b, #10
-        div ab
-        mov a, b
-        jz T2S_FSM_State5_Done ; Prevents from playing something like 'forty zero'
-        lcall Play_Sound_Using_Index
-    T2S_FSM_State5_Done:
-        mov T2S_FSM_State, #2
-        ret
-
-    T2S_FSM_State6: ; Plays the word 'minutes'
-        cjne a, #6, T2S_FSM_State7
-        mov a, #24 ; Index 24 has the word 'minutes'
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #7
-        ret
-
-    T2S_FSM_State7: ; Stay in this state until sound finishes playing
-        cjne a, #7, T2S_FSM_State8
-        jb TMOD20, T2S_FSM_State7_Done 
-        ; Done playing previous sound, check if seconds is larger than 19
-        clr c
-        mov a, seconds
-        subb a, #20
-        jnc seconds_gt_19
-        mov T2S_FSM_state, #8
-        sjmp T2S_FSM_State0_Done
-    seconds_gt_19:
-        mov T2S_FSM_state, #10
-    T2S_FSM_State7_Done:
-        ret
-
-    T2S_FSM_State8: ; Play the seconds when seconds is less than 20.
-        cjne a, #8, T2S_FSM_State9
-        mov a, seconds
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_state, #9
-        ret
-
-    T2S_FSM_State9: ; Stay in this state until sound finishes playing
-        cjne a, #9, T2S_FSM_State10
-        jb TMOD20, T2S_FSM_State9_Done 
-        mov T2S_FSM_State, #13
-    T2S_FSM_State9_Done:
-        ret
-
-    T2S_FSM_State10:  ; Plays the tens when seconds is larger than 19, for example for 35 seconds, it plays 'thirty'
-        cjne a, #10, T2S_FSM_State11
-        mov a, seconds
-        mov b, #10
-        div ab
-        add a, #18
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_state, #11
-        ret
-
-    T2S_FSM_State11: ; Stay in this state until sound finishes playing
-        cjne a, #11, T2S_FSM_State12
-        jb TMOD20, T2S_FSM_State11_Done 
-        mov T2S_FSM_State, #12
-    T2S_FSM_State11_Done:
-        ret
-
-    T2S_FSM_State12: ; Plays the units when seconds is larger than 19, for example for 35 seconds, it plays 'five'
-        cjne a, #12, T2S_FSM_State13
-        mov a, seconds
-        mov b, #10
-        div ab
-        mov a, b
-        jz T2S_FSM_State12_Done ; Prevents from saying something like 'thirty zero'
-        lcall Play_Sound_Using_Index
-    T2S_FSM_State12_Done:
-        mov T2S_FSM_State, #9
-        ret
-
-    T2S_FSM_State13: ; Plays the word 'seconds'
-        cjne a, #13, T2S_FSM_State14
-        mov a, #25 ; Index 25 has the word 'seconds'
-        lcall Play_Sound_Using_Index
-        mov T2S_FSM_State, #14
-        ret
-
-    T2S_FSM_State14: ; Stay in this state until sound finishes playing
-        cjne a, #14, T2S_FSM_Error
-        jb TMOD20, T2S_FSM_State14_Done 
-        clr T2S_FSM_Start 
-        mov T2S_FSM_State, #0
-    T2S_FSM_State14_Done:
-        ret
-
-    T2S_FSM_Error: ; If we got to this point, there is an error in the finite state machine.  Restart it.
-        mov T2S_FSM_state, #0
-        clr T2S_FSM_Start
-        ret
-;---------------------------------------------------------------------------------;       
-WaitHalfSec:
-            mov R2, #178
-            Lr3: mov R1, #250
-            Lr2: mov R0, #166
-            Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
-            djnz R1, Lr2 ; 22.51519us*250=5.629ms
-            djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
-            ret
-    	
-
-Display_temp:
-
+;WaitHalfSec:
+    ;        mov R2, #178
+    ;        Lr3: mov R1, #250
+    ;        Lr2: mov R0, #166
+    ;        Lr1: djnz R0, Lr1 ; 3 cycles->3*45.21123ns*166=22.51519us
+    ;        djnz R1, Lr2 ; 22.51519us*250=5.629ms
+    ;        djnz R2, Lr3 ; 5.629ms*89=0.5s (approximately)
+    ;        ret
+    ;	
+    ;blink:
+    ;        mov SP, #7FH
+    ;        mov P3M1, #0   ; Configure P3 in bidirectional mode
+    ;    M0:
+    ;        cpl P3.7
+    ;        Set_Cursor(1, 1)
+    ;        Send_Constant_String(#nothing)
+    ;        Set_Cursor(2, 1)
+    ;        Send_Constant_String(#nothing)
+    ;        Set_Cursor(1, 1)
+    ;        Send_Constant_String(#hot)
+    ;        Set_Cursor(2, 1)
+    ;        Send_Constant_String(#hot)
+    ;
+    ;        lcall WaitHalfSec
+    ;
+    ;        ret
+    ;
+    ;convert:
+    ;    mov x+0, Result
+    ;	mov x+1, Result+1 
+    ;	mov x+2, #0
+    ;	mov x+3, #0
+    ;    ret
+    ;    
+    ;
+    Display_temp:
+    ;    Load_y(410)
+    ;    lcall mul32
+    ;    Load_y(1023)
+    ;    lcall div32
+    ;    Load_y(273)
+    ;    lcall sub32
+    ;    lcall hex2bcd
+    ;    lcall InitSerialPort
         Set_Cursor(1, 1)
         Send_Constant_String(#Temp0)
-
-  ret
-
+    ;    lcall SendString
+    ;    Set_Cursor(1, 5)    
+    ;    Send_BCD(bcd+1) ; send fisrt 2 digits to putty
+    ;    Display_BCD(bcd+1); send fisrt 2 digits to lcd
+    ;    Set_Cursor(1, 7) 
+    ;    Send_BCD(bcd) ; send last 2 digits to putty
+    ;    Display_BCD(bcd+0) ; send last 2 digits to lcd
+    ;    Set_Cursor(1, 5)
+    ;    Send_Constant_String(#dots)
+    ;    lcall SendString
+    ;    mov DPTR, #Newline
+    ;    lcall SendString
+        ret
+    ;config_adc:
+    ;        clr CE_ADC 
+    ;        mov R0, #00000001B; Start bit:1 
+    ;        lcall DO_SPI_G
+    ;
+    ;        mov R0, #10000000B; Single ended, read channel 0 
+    ;        lcall DO_SPI_G 
+    ;        mov a, R1          ; R1 contains bits 8 and 9 
+    ;        anl a, #00000011B  ; We need only the two least significant bits 
+    ;        mov Result+1, a    ; Save result high.
+    ;
+    ;        mov R0, #55H; It doesn't matter what we transmit... 
+    ;        lcall DO_SPI_G 
+    ;        mov Result, R1     ; R1 contains bits 0 to 7.  Save result low. 
+    ;        setb CE_ADC 
+    ;        lcall convert  
+    ;        mov a, bcd ; move temp to accumulator 
+    ;        ret
 Reset_timer:
 
     clr TR1                 ; Stop timer 2
@@ -994,28 +914,36 @@ Display_time:
         ret
 home_page:
 
+  ;    jb P2.7, continue20
+  ; Wait_Milli_Seconds(#50) ; debounce
+  ; jb P2.7, continue20
+  ; jnb p2.7, $
+   ;clr TR1 
+    mov BCD_counter, #0x00
+    mov minutes, #0x0   
+    lcall Display_time
 
    continue20:
     ;--------Timer----------;
 
-    jnb half_seconds_flag, Temp_sensor
+    jnb my_flag, Temp_sensor
     lcall sec_counter
     lcall min_counter
     lcall Display_time
-
     ;-----------------------;
 
     ;-----TEMP SENSOR-------;
     Temp_sensor:
+ ;    lcall config_adc
     lcall Display_temp
-     lcall  WaitHalfSec 
+ ;    lcall  WaitHalfSec 
  ;    ;-----------------------;
 
 
 
 
     ret
-
+;
 setup_reflow_page:
     PushButton(set_BUTTON, continue9)
     cpl tt_reflow_flag
@@ -1085,8 +1013,24 @@ setup_reflow_page:
         continue8:
         ret
     INC_DEC_Reflow_temp:
+        ;PushButton(SETUP_SOAK_Button,check_decrement2) ; setup soak is also used to increment 
 
-            PushButton(SETUP_SOAK_Button, check_decrement2) ; SET UP IS ALSO USED TO INCREMENT 
+            PushButton(SETUP_SOAK_Button, check_decrement2)
+          ;  jb SETUP_SOAK_Button, check_decrement2  
+          ;      Wait_Milli_Seconds(#50)	
+          ;  jb SETUP_SOAK_Button, check_decrement2  
+          ;  loop_hold_inc:
+;
+          ;  jnb SETUP_SOAK_Button, jump2
+          ;  ;Wait_Milli_Seconds(#50)
+          ;  jnb SETUP_SOAK_Button, jump2
+          ;  ljmp hold_done
+          ;  jump2:
+          ;  Set_Cursor(1, 5)
+          ;  Display_BCD(reflow_temp+0)
+          ;  Set_Cursor(1, 7)
+          ;  Display_BCD(reflow_temp+1)
+          ;  Wait_Milli_Seconds(#100)	
             mov a, reflow_temp+1
             add a, #0x01
             da a ; Decimal adjust instruction.  Check datasheet for more details!
@@ -1097,8 +1041,10 @@ setup_reflow_page:
             add a, #0x01
             da a ; Decimal adjust instruction.  Check datasheet for more details!
             mov reflow_temp+0, a
+           ; mov a, reflow_temp+1
             INC_reflow_temp_done2:
             
+          ;  ljmp loop_hold_inc
         hold_done:
         
 
@@ -1106,7 +1052,19 @@ setup_reflow_page:
         check_decrement2:
 
             PushButton( Button_min, DEC_reflow_temp_done2)
-	
+         ;   jb Button_min, DEC_reflow_temp_done2  
+         ;       Wait_Milli_Seconds(#50)	
+         ;   jb Button_min, DEC_reflow_temp_done2  
+         ;   loop_hold_dec:
+;
+         ;   jnb Button_min, jump3
+         ;   ljmp DEC_reflow_temp_done2
+         ;   jump3:
+         ;   Set_Cursor(1, 5)
+         ;   Display_BCD(reflow_temp+0)
+         ;   Set_Cursor(1, 7)
+         ;   Display_BCD(reflow_temp+1)
+         ;   Wait_Milli_Seconds(#100)	
             mov a, reflow_temp+1
             add a, #0x99
             da a ; Decimal adjust instruction.  Check datasheet for more details!
@@ -1160,7 +1118,7 @@ setup_soak_page:
     Display_BCD(soak_sec)
     Set_Cursor(2, 6)
     Display_BCD(soak_min)
-    ret
+ret
     INC_DEC_soak_time:
     
         PushButton(SETUP_SOAK_Button,check_decrement_soak) ; setup soak is also used to increment 
@@ -1196,7 +1154,21 @@ setup_soak_page:
     INC_DEC_soak_temp:
         
         PushButton(SETUP_SOAK_Button, check_decrement2_soak)
-	
+        ;    jb SETUP_SOAK_Button, check_decrement2_soak  
+        ;        Wait_Milli_Seconds(#50)	
+        ;    jb SETUP_SOAK_Button, check_decrement2_soak  
+        ;    loop_hold_inc_soak:
+      ;
+        ;    jnb SETUP_SOAK_Button, jump6
+        ;    Wait_Milli_Seconds(#100)
+        ;    jnb SETUP_SOAK_Button, jump6
+        ;    ljmp hold_done_soak
+        ;    jump6:
+        ;    Set_Cursor(1, 5)
+        ;    Display_BCD(soak_temp+0)
+        ;    Set_Cursor(1, 7)
+        ;    Display_BCD(soak_temp+1)
+        ;    Wait_Milli_Seconds(#200)	
             mov a, soak_temp+1
             add a, #0x01
             da a ; Decimal adjust instruction.  Check datasheet for more details!
@@ -1219,7 +1191,21 @@ setup_soak_page:
 
             PushButton( Button_min, DEC_soak_temp_done2)
            ; 
-
+           ; jb Button_min, DEC_soak_temp_done2  
+           ;     Wait_Milli_Seconds(#50)	
+           ; jb Button_min, DEC_soak_temp_done2  
+           ; loop_hold_dec_soak:
+             ;
+           ; jnb Button_min, jump7
+           ; Wait_Milli_Seconds(#100)
+           ; jnb Button_min, jump7
+           ; ljmp DEC_soak_temp_done2
+           ; jump7:
+           ; Set_Cursor(1, 5)
+           ; Display_BCD(soak_temp+0)
+           ; Set_Cursor(1, 7)
+           ; Display_BCD(soak_temp+1)
+           ; Wait_Milli_Seconds(#100)	
             mov a, soak_temp+1
             add a, #0x99
             da a ; Decimal adjust instruction.  Check datasheet for more details!
@@ -1251,11 +1237,12 @@ FSM_LCD:
         ;----------------STATE 0------------------;
          home_state:
             cjne a, #0, soak_reflow_state
-            PushButton(set_BUTTON,done_home2)  
-            ; If pushbutton set_Button is pressed it changes to soak_reflow Page otherwise it stays at the home page
+            PushButton(set_BUTTON,done_home2) 
+            ;setb set_flag  
             mov state_lcd, #1
             ljmp done_home
             done_home2:
+            ;clr set_flag
             lcall home_page
             done_home:
             ljmp Forever_done           
@@ -1279,7 +1266,7 @@ FSM_LCD:
             done_soak:
            ljmp Forever_done 
         ;------------------------------------------;
-
+;
      ;   ;-----------------STATE 2------------------;
         setup_soak: ; its actually set up reflow Im dumb
             cjne a, #2, setup_reflow
@@ -1292,7 +1279,7 @@ FSM_LCD:
             done_setup_soak:
             ljmp Forever_done 
         ;------------------------------------------;
-
+;
      ;   ;----------------STATE 3-------------------;
         setup_reflow: ; its actually set up soak Im dumb
             cjne a, #3, FDP
@@ -1309,9 +1296,120 @@ FSM_LCD:
             ljmp Forever_done 
      ;   ;------------------------------------------;
         Forever_done:
- ret
+ret
 
-FSM_PWM:  
+;------------------------------
+;---------------------------------;
+; Main program. Includes hardware ;
+; initialization and 'forever'    ;
+; loop.                           ;
+;---------------------------------;
+main:
+	; Initialization
+    mov SP, #0x7F
+    lcall Timer0_Init
+    lcall Timer1_Init
+
+    lcall Ports_Init ; Default all pins as bidirectional I/O. See Table 42.
+    lcall LCD_4BIT
+    lcall Double_Clk
+	lcall InitDAC1 ; Call after 'Ports_Init'
+	lcall CCU_Init
+	lcall Init_SPI
+	
+	
+	setb EA ; Enable global interrupts.
+
+	; Initialize variables
+	clr T2S_FSM_Start
+	mov T2S_FSM_state, #0
+    ; Configure all the ports in bidirectional mode:
+
+    mov P0M1, #00H
+    mov P0M2, #00H
+    mov P1M1, #00H
+    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
+    mov P2M1, #00H
+    mov P2M2, #00H
+    mov P3M1, #00H
+    mov P3M2, #00H
+    
+    ;mov minutes, #0
+	mov seconds, #0
+
+   ; lcall LCD_4BIT
+    ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
+;	Set_Cursor(1, 1)
+  ;  Display_BCD(BCD_counter)
+
+    setb half_seconds_flag
+    setb my_flag   
+
+	mov BCD_counter, #0x00
+	mov pwm , #0
+	mov sec , #0
+	mov state, #0
+	mov temp, #150
+    mov time_soak, #5
+    mov temp_refl, #220
+    mov temp_soak, #5
+    mov five_sec_flag,#0
+	; After initialization the program stays in this 'forever' loop
+
+    mov reflow_sec, #0x00
+    mov reflow_min, #0x00
+    mov minutes, #0x00
+    mov state_lcd, #0
+    clr TR1_flag
+    mov reflow_temp+0, #0x01
+    mov reflow_temp+1, #0x50
+    clr tt_reflow_flag
+    mov soak_sec, #0x00
+    mov soak_min, #0x00
+
+    mov soak_temp+0, #0x01
+    mov soak_temp+1, #0x50
+    clr stop_flag
+
+    
+forever:	
+    lcall FSM_LCD
+
+    lcall T2S_FSM
+	; One second has passed, refresh the LCD with new time
+;	Set_Cursor(1, 1)
+;    Send_Constant_String(#timee)
+;    Set_Cursor(1, 5)
+;    Display_BCD(sec)
+;    Set_Cursor(2, 1)
+;    Send_Constant_String(#statee)
+ ;   Set_Cursor(2, 5)
+  ;  Display_BCD(BCD_counter)
+
+    
+        
+  ;  jb P2.6, continue19
+;	Wait_Milli_Seconds(#50) ; debounce
+;	jb P2.6, continue19
+;	jnb P2.6, $
+;	clr TR1 
+;	ljmp forever
+   continue19:
+
+
+
+  ;  mov a, five_sec_flag
+  ;  cjne a,#5, pass_quack
+  ;  quack_like_a_duck:
+  ;  clr TR1 ; Stop timer 1.
+  ;  mov a,#0
+  ;  mov five_sec_flag,a
+  ;  clr TR1 ; Stop timer 1.
+;	setb T2S_FSM_Start ; This plays the current minutes:seconds by making the state machine get out of state zero.
+  ;  pass_hash:
+  ;  pass_quack:
+  ;  setb TR1 ; en timer 1.
+    
     mov a, state
   state0: 
       cjne a, #0, state1
@@ -1383,104 +1481,6 @@ FSM_PWM:
       jnc state5_done
       mov state, #0
   state5_done:
-ret
-
-;---------------------------------;
-; Main program. Includes hardware ;
-; initialization and 'forever'    ;
-; loop.                           ;
-;---------------------------------;
-main:
-	; Initialization
-    mov SP, #0x7F
-    lcall Timer0_Init
-    lcall Timer1_Init
-    lcall InitSerialPort
-
-    lcall Ports_Init ; Default all pins as bidirectional I/O. See Table 42.
-    lcall LCD_4BIT
-    lcall Double_Clk
-	lcall InitDAC1 ; Call after 'Ports_Init'
-	lcall CCU_Init
-	lcall Init_SPI
-	
-	
-	setb EA ; Enable global interrupts.
-
-	; Initialize variables
-	clr T2S_FSM_Start
-	mov T2S_FSM_state, #0
-    ; Configure all the ports in bidirectional mode:
-
-    mov P0M1, #00H
-    mov P0M2, #00H
-    mov P1M1, #00H
-    mov P1M2, #00H ; WARNING: P1.2 and P1.3 need 1kohm pull-up resistors!
-    mov P2M1, #00H
-    mov P2M2, #00H
-    mov P3M1, #00H
-    mov P3M2, #00H
-    
-    ;mov minutes, #0
-	mov seconds, #0
-
-   ; lcall LCD_4BIT
-    ; For convenience a few handy macros are included in 'LCD_4bit_LPC9351.inc':
- ;	Set_Cursor(1, 1)
-  ;  Display_BCD(BCD_counter)
-
-    setb half_seconds_flag
-    setb my_flag   
-
-	mov BCD_counter, #0x00
-	mov pwm , #0
-	mov sec , #0
-	mov state, #0
-	mov temp, #150
-    mov time_soak, #5
-    mov temp_refl, #220
-    mov temp_soak, #5
-    mov five_sec_flag,#0
-	; After initialization the program stays in this 'forever' loop
-
-    mov reflow_sec, #0x00
-    mov reflow_min, #0x00
-    mov minutes, #0x00
-    mov state_lcd, #0
-    clr TR1_flag
-    mov reflow_temp+0, #0x01
-    mov reflow_temp+1, #0x50
-    clr tt_reflow_flag
-    mov soak_sec, #0x00
-    mov soak_min, #0x00
-
-    mov soak_temp+0, #0x01
-    mov soak_temp+1, #0x50
-    clr stop_flag
-
-    
-forever:	
-    lcall FSM_LCD
-    lcall T2S_FSM ; Speaker fsm
-    lcall FSM_PWM
-      Check_if_stop_button_is_on:
-   jb P2.6, continue19 
-    Wait_Milli_Seconds(#50) ; debounce
-    jb P2.6, continue19
-    jnb P2.6, $
-    clr TR1 
-    ljmp forever
-     ;Press Button 2.7 to clean/abort the oven controller 
-   jb P2.7, continue19
-   Wait_Milli_Seconds(#50) ; debounce
-   jb P2.7, continue19
-   jnb p2.7, $
-   clr TR1 
-   mov state , #0
-   mov BCD_counter, #0x00
-   mov minutes, #0x0   
-   lcall Display_time
-   continue19:
        ljmp forever 
        
 

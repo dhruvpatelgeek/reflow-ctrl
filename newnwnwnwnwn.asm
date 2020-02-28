@@ -21,10 +21,10 @@
     BAUD        EQU 115200
     BRVAL       EQU ((CLK/BAUD)-16)
 
-XTAL EQU (14746000/2) 
+ XTAL EQU (14746000/2) 
 
 
-OP_AMP_GAIN EQU 340 ;what is the exact gain?
+ OP_AMP_GAIN EQU 340 ;what is the exact gain?
 
     
 
@@ -175,7 +175,7 @@ bcd: ds 5
 
     cseg
     ; These 'equ' must match the wiring between the microcontroller and the LCD!
-     LCD_RS equ P0.5
+    LCD_RS equ P0.5
     LCD_RW equ P0.6
     LCD_E  equ P0.7
     LCD_D4 equ P1.2
@@ -188,10 +188,10 @@ bcd: ds 5
     SOUND         EQU P3.1
     stop            equ p0.4
     
-    SETUP_SOAK_Button equ  P2.1
-    set_BUTTON        equ  P2.0      
-    Button_min        equ  P2.6
-    HOME_BUTTON       equ  P2.7
+    SETUP_SOAK_Button equ  P0.2
+    set_BUTTON        equ  P0.3
+    Button_min        equ  P2.0
+    HOME_BUTTON       equ  P2.1
 
     ;define the connections between the ADC and MCU (P89 & MCP3008)
 CE_ADC    EQU  P2.7;P2.4   ;SS
@@ -218,7 +218,7 @@ MY_SCLK   EQU  P2.4   ;SPICLK
 
     Initial_Message:  db 'BCD_counter: xx ', 0
    ;Home page
-    Temp0:            db 'Temp:           ', 0
+    Temp0:            db 'Temp:', 0
     the_unit_of_temp:            db 'C', 0
     Time:             db 'Time xx:xx SET  ', 0
    ;Second Page
@@ -320,14 +320,21 @@ new_line:
 
 
 Display_putty:
-    mov x, bcd
-    lcall SendTemp
+   ; mov x, bcd
+    ;lcall SendTemp
     
     Set_Cursor(1,5)
     Display_BCD(bcd+1)
     Set_Cursor(1,7)
     Display_BCD(bcd+0)
     Set_Cursor(1,8)
+
+    Send_BCD(bcd+4)
+    Send_BCD(bcd+3)
+    Send_BCD(bcd+2)
+    Send_BCD(bcd+1)
+    Send_BCD(bcd+0)
+    
 
     Set_Cursor(1,10)
     Send_Constant_String(#the_unit_of_temp)
@@ -366,8 +373,8 @@ InitSerialPort:
 	ret
 	
 
-DO_SPI_G:
-    clr EA
+
+DO_SPI_G:     
 	push acc     
 	mov R1, #0      ; Received byte stored in R1     
 	mov R2, #8      ; Loop counter (8-bits)
@@ -384,7 +391,6 @@ DO_SPI_G_LOOP:
 	clr MY_SCLK     
 	djnz R2, DO_SPI_G_LOOP     
 	pop acc     
-    setb EA
 	ret 
 	
 ;---------------------------------;
@@ -392,7 +398,6 @@ DO_SPI_G_LOOP:
 ;---------------------------------;
 
 hannah:
-clr EA
 	;read channel 0 of the ADC and transmitting this info to the MCU
 	clr CE_ADC ;enable device (active low)
 	;transmit the info from channel 0
@@ -430,18 +435,20 @@ clr EA
 
 	
 	;convert the voltage from ch0(LM335) to temperature and display in putty - ch0 correspond to the cold jnc temp
-	mov x+0, ch0
-	mov x+1, ch0+1
-	mov x+2, #0
-	mov x+3, #0
-	
-	load_y(410)
-	lcall mul32
-	load_y(1023)
-	lcall div32
-	load_y(273)
-	lcall sub32 
-	lcall hex2bcd
+	;mov x+0, ch0
+	;mov x+1, ch0+1
+	;mov x+2, #0
+	;mov x+3, #0
+	;
+	;load_y(100)
+	;lcall mul32
+	;load_y(94)
+	;lcall add32
+	;load_y(348)
+	;lcall div32
+    ;load_y(26) 
+    ;lcall add32
+	;lcall hex2bcd
 	;lcall Display_putty
 	
 	;do the same for ch1(output voltage of OP AMP) - ch1 corresponds to the hot jnc temp
@@ -450,34 +457,24 @@ clr EA
 	mov x+2, #0
 	mov x+3, #0
 	
-	load_y(1000000)
+	load_y(100)
 	lcall mul32
-	load_y(OP_AMP_GAIN)
+	load_y(94)
+	lcall add32
+	load_y(348)
 	lcall div32
-	load_y(41)
-	lcall div32 
-
-    load_y(8000)
+    load_y(26) 
     lcall add32
-    load_y(258)
-    lcall div32
-    
-    ;load_y(24)
-    ;lcall add32
-    
-    ;load_y(10)
-    ;lcall div32
-
 	lcall hex2bcd
-    lcall Delay
-    ;jnb my_flag, continue30
-    ;clr my_flag
-    mov x+0, ch0
-	mov x+1, ch0+1
-    lcall hex2bcd
-	;lcall Display_putty
-    setb EA
-	lcall SendTemp
+    
+    mov a, #0x45
+    Send_BCD(a)
+
+
+    jnb my_flag, continue30
+    clr my_flag
+	lcall Display_putty
+	;lcall SendTemp
     continue30:
 	;mov a, #'\r'
 	;lcall putchar
@@ -737,13 +734,22 @@ Init_SPI:
     setb MY_MISO    ; Make MISO an input pin     
 	clr MY_SCLK     ; For mode (0,0) SCLK is zero  
 	; Configure MOSI (P2.2), CS* (P2.4), and SPICLK (P2.5) as push-pull outputs (see table 42, page 51)
-	anl P2M1, #low(not(00110100B))
-	orl P2M2, #00110100B
+	;anl P2M1, #low(not(00110100B))
+	;orl P2M2, #00110100B
 	; Configure MISO (P2.3) as input (see table 42, page 51)
-	orl P2M1, #00001000B
-	anl P2M2, #low(not(00001000B)) 
+	;orl P2M1, #00001000B
+	;anl P2M2, #low(not(00001000B)) 
 	; Configure SPI
-	mov SPCTL, #11010000B ; Ignore /SS, Enable SPI, DORD=0, Master=1, CPOL=0, CPHA=0, clk/4
+	;mov SPCTL, #11010000B ; Ignore /SS, Enable SPI, DORD=0, Master=1, CPOL=0, CPHA=0, clk/4
+    
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 	ret
 
 ;---------------------------------;
@@ -1206,10 +1212,10 @@ Display_time:
         ret
 home_page:
 
-      jb P2.7, continue20
+   jb stop, continue20
    Wait_Milli_Seconds(#50) ; debounce
-   jb P2.7, continue20
-   jnb p2.7, $
+   jb stop, continue20
+   jnb stop, $
    ;clr TR1 
     mov BCD_counter, #0x00
     mov minutes, #0x0   
@@ -1725,7 +1731,7 @@ main:
 forever:	
     lcall FSM_LCD
 
-   ; lcall T2S_FSM
+    lcall T2S_FSM
 	; One second has passed, refresh the LCD with new time
 ;	Set_Cursor(1, 1)
 ;    Send_Constant_String(#timee)
@@ -1738,13 +1744,13 @@ forever:
 
     
         
-  ;  jb P2.6, continue19
-;	Wait_Milli_Seconds(#50) ; debounce
-;	jb P2.6, continue19
-;	jnb P2.6, $
-;	clr TR1 
-;	ljmp forever
-  ; continue19:
+    jb stop, continue19
+	Wait_Milli_Seconds(#50) ; debounce
+	jb stop, continue19
+	jnb stop, $
+	clr TR1 
+	ljmp forever
+   continue19:
 
 
 
@@ -1760,7 +1766,7 @@ forever:
   ;  pass_quack:ssss
   ;  setb TR1 ; en timer 1.
 
-  ;  lcall hannah
+    lcall hannah
    
 
     mov a, state
